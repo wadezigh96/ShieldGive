@@ -43,9 +43,11 @@ function addLog(level, message, meta) {
 }
 
 export default async function handler(req, res) {
-  const path = Array.isArray(req.query.path)
+  const queryPath = Array.isArray(req.query.path)
     ? req.query.path.join("/")
     : String(req.query.path || "");
+  const urlPath = String(req.url || "").split("?")[0].replace(/^\/api\/?/, "");
+  const path = queryPath || urlPath;
   const method = req.method || "GET";
 
   if (method === "GET" && path === "campaign") {
