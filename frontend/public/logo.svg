@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2dd4bf"/>
+      <stop offset="100%" stop-color="#0d9488"/>
+    </linearGradient>
+  </defs>
+  <!-- Shield body -->
+  <path d="M64 12 L104 28 V60 C104 88 84 108 64 116 C44 108 24 88 24 60 V28 Z"
+        fill="url(#g)" stroke="#134e4a" stroke-width="3"/>
+  <!-- Inner shield highlight -->
+  <path d="M64 22 L94 34 V58 C94 80 78 96 64 102 C50 96 34 80 34 58 V34 Z"
+        fill="#0f766e" opacity="0.35"/>
+  <!-- Check mark -->
+  <path d="M48 64 L58 74 L82 48"
+        stroke="white" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>
