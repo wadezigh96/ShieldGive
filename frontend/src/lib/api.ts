@@ -1,16 +1,11 @@
-const BASE = "/api";
+/**
+ * API client with automatic fallback to client-side mock store.
+ * This allows the full demo to work on static Vercel hosting without a backend.
+ */
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...options?.headers },
-    ...options,
-  });
-  const json = await res.json();
-  if (!res.ok || !json.success) {
-    throw new Error(json.error?.message || json.error || "Request failed");
-  }
-  return json.data as T;
-}
+import { mockStore } from "./mockStore";
+
+const BASE = "/api";
 
 export interface Campaign {
   id: string;
@@ -54,6 +49,65 @@ export interface AgentStatus {
   pollIntervalSeconds: number;
   totalDonations: number;
   registeredDonors: number;
+}
+
+async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  try {
+    const res = await fetch(`${BASE}${path}`, {
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      ...options,
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error?.message || json.error || "Request failed");
+    return json.data as T;
+  } catch {
+    // Backend unavailable → fall back to client-side mock (demo mode)
+    return mockFallback<T>(path, options);
+  }
+}
+
+async function mockFallback<T>(path: string, options?: RequestInit): Promise<T> {
+  const method = (options?.method || "GET").toUpperCase();
+  let body: Record<string, unknown> = {};
+  if (options?.body && typeof options.body === "string") {
+    try {
+      body = JSON.parse(options.body);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  if (path === "/campaign" && method === "GET") {
+    return mockStore.getCampaign() as T;
+  }
+  if (path === "/register" && method === "POST") {
+    return mockStore.registerDonor(
+      String(body.solanaWallet || ""),
+      body.note ? String(body.note) : undefined
+    ) as T;
+  }
+  if (path === "/donors" && method === "GET") {
+    return mockStore.getDonors() as T;
+  }
+  if (path === "/donations" && method === "GET") {
+    return mockStore.getDonations() as T;
+  }
+  if (path.startsWith("/agent/logs") && method === "GET") {
+    const limit = parseInt(path.split("limit=")[1] || "40", 10);
+    return mockStore.getAgentLogs(limit) as T;
+  }
+  if (path === "/agent/status" && method === "GET") {
+    return mockStore.getAgentStatus() as T;
+  }
+  if (path === "/agent/simulate" && method === "POST") {
+    return (await mockStore.simulateDonation(
+      Number(body.amountZEC) || 0.25,
+      body.memo ? String(body.memo) : undefined
+    )) as T;
+  }
+
+  throw new Error(`Mock: unsupported path ${method} ${path}`);
 }
 
 export const api = {
