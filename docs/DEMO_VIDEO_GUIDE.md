@@ -1,110 +1,124 @@
-# ShieldGive — Demo Video Recording Guide (YouTube)
+# ShieldGive — YouTube Demo Video Guide
 
-**Target length:** 1:45 – 2:15  
+**Target length:** ~90–120 seconds  
+**Style reference:** Clean title slides + problem + solution + live product walkthrough + closing links  
 **Language:** English  
-**Voiceover file:** `ShieldGive_Demo_Voiceover.mp3` (ready to use)
+**Voiceover:** Use existing `ShieldGive_Demo_Voiceover.mp3` or re-record with the script below
+
+**Live demo:** https://shield-give.vercel.app/  
+**GitHub:** https://github.com/wadezigh96/ShieldGive
 
 ---
 
-## What you already have
+## Recommended structure (timeline)
 
-- Ready English voiceover: `docs/ShieldGive_Demo_Voiceover.mp3`
-- Full product UI (Campaign → Agent → Gallery)
-- Script timed to the voiceover below
-
----
-
-## How to record (recommended method)
-
-### Option A — Loom (easiest)
-1. Install Loom (or use loom.com)
-2. Start recording (Screen + optional camera off)
-3. Open the app (local `npm run dev` or your Vercel URL)
-4. Play the voiceover in the background (or import it later in editing)
-5. Follow the shot list below while the voiceover plays
-
-### Option B — OBS Studio (higher quality)
-1. Add Display Capture / Window Capture of the browser
-2. Import `ShieldGive_Demo_Voiceover.mp3` as Audio Input
-3. Record while following the timing
-
-### Option C — Quick (CapCut / DaVinci / iMovie)
-1. Record silent screen recording first
-2. Import the MP3 voiceover in the editor
-3. Align screen actions to the narration
+| Time | Screen | Narration (speak this) |
+|------|--------|------------------------|
+| 0:00 – 0:08 | **Title slide** | “Hi, this is ShieldGive — private donations with collectible proof, built for the Colosseum Crypto World’s Fair Zcash track.” |
+| 0:08 – 0:18 | **Problem slide** | “On-chain donations normally expose who gave and how much. That discourages support for sensitive causes — and private donors get no proof they can keep.” |
+| 0:18 – 0:32 | **Solution slide** | “ShieldGive lets donors send Zcash through a shielded address. A background agent detects the payment and automatically mints an NFT proof to their Solana wallet. No claim button. Identity stays private.” |
+| 0:32 – 0:50 | **Live: Campaign page** | “Here’s the campaign page. Total raised, donation count, and the shielded address. Donors register their Solana wallet once.” |
+| 0:50 – 1:10 | **Live: Agent Dashboard** | “This is the agent dashboard — a deterministic scheduled job, not an LLM. We simulate a shielded donation of 0.25 ZEC and run the pipeline.” |
+| 1:10 – 1:25 | **Live: Agent logs + Gallery** | “Watch the log: detected, validated, NFT minted. The gallery updates totals without revealing any donor identities.” |
+| 1:25 – 1:40 | **Closing slide** | “Private donations. Collectible proof. Zero friction. Repo and live demo are in the submission. Thanks for watching — ShieldGive.” |
 
 ---
 
-## Shot-by-shot timing (match the voiceover)
+## Slide text (copy into CapCut / Canva / Keynote)
 
-| Time | What to show on screen | Narration (summary) |
-|------|------------------------|---------------------|
-| 0:00 – 0:12 | Logo / title or Campaign page hero | Intro + problem |
-| 0:12 – 0:35 | Campaign page: title, description, shielded address, totals | Campaign + privacy |
-| 0:35 – 0:50 | Scroll to “Register your Solana wallet” form, type a wallet | Register wallet |
-| 0:50 – 1:10 | Switch to **Agent** tab, show status cards | Explain the agent |
-| 1:10 – 1:35 | Enter `0.25`, click **Run agent pipeline**, watch logs update | Simulate + live log |
-| 1:35 – 1:55 | Switch to **Gallery**, show totals + minted NFT | Gallery privacy |
-| 1:55 – 2:10 | End on Gallery or logo | Closing |
+### 1. Title (0:00)
+```
+ShieldGive
+Private Donation Proof via Zcash + Solana NFT
 
----
+Colosseum Crypto World's Fair — Zcash Track
+```
 
-## Exact actions to perform while recording
+### 2. The Problem (0:08)
+```
+The Problem
 
-1. **Start on Campaign page**
-   - Show the shield logo and “Live Campaign”
-   - Highlight the shielded address (you can click Copy)
-   - Point out Total Raised and Donations counters
+On-chain donations expose identity and amount
+Private donors receive no collectible proof
+```
 
-2. **Register wallet**
-   - Paste any valid-looking Solana address (example: `7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU`)
-   - Click “Register wallet”
-   - Wait for the success message
+### 3. The Solution (0:18)
+```
+The Solution
 
-3. **Go to Agent Dashboard**
-   - Show the 4 status cards (Zcash Mode = Mock, etc.)
-   - Type `0.25` in the amount field
-   - Click **Run agent pipeline**
-   - Wait ~2–3 seconds and let the log entries appear (detected → validated → minted)
+Shielded Zcash payment → background agent → automatic Solana NFT
+No manual claim · Identity stays private on-chain
+```
 
-4. **Go to Gallery**
-   - Show the three summary cards (Total Raised, Donations, NFTs Minted)
-   - Scroll the minted proof list if anything appeared
-   - End on the privacy note at the bottom
+### 4. Closing (1:25)
+```
+ShieldGive
 
----
+Live:  https://shield-give.vercel.app
+GitHub: https://github.com/wadezigh96/ShieldGive
 
-## YouTube upload tips
-
-- **Title:** `ShieldGive Demo — Private Zcash Donations + Automatic Solana NFT Proof`
-- **Description (copy-paste):**
-  ```
-  ShieldGive enables private donations via Zcash shielded transactions while automatically minting a collectible NFT proof on Solana.
-
-  • Donors stay anonymous on-chain
-  • Background agent detects payment and mints NFT automatically
-  • No manual claim required
-
-  Built for Colosseum Crypto World's Fair — Zcash Track
-
-  GitHub: https://github.com/wadezigh96/ShieldGive
-  ```
-- **Tags:** `Zcash, Solana, NFT, privacy, donation, Colosseum, hackathon, ShieldGive`
-- Keep video **under 3 minutes** (Colosseum requirement)
+Thanks for watching
+```
 
 ---
 
-## Checklist before upload
+## Exact actions on the live demo (record after title slides)
 
-- [ ] Screen recording matches the voiceover timing
-- [ ] Audio is clear (voiceover volume good, no background noise)
-- [ ] Resolution at least 1080p
-- [ ] No personal info or real private keys visible
-- [ ] Link works if you mention a live demo URL
+1. Open https://shield-give.vercel.app/
+2. **Campaign**
+   - Show title “Support Privacy Research”
+   - Point at Total Raised / Donations
+   - Show shielded address + Copy
+   - Paste any Solana-looking address → click **Register wallet**
+3. Click **Agent**
+   - Show status cards (Mock mode is fine for demo)
+   - Amount `0.25` → click **Run agent pipeline**
+   - Wait ~2 seconds for SUCCESS logs (detected → validated → minted)
+4. Click **Gallery**
+   - Show Total Raised, Donations Detected, NFTs Minted
+   - Show the minted proof row (amount + redacted wallet)
+5. End → cut to closing slide
+
+**Tip:** Do not hard-refresh during the recording. State is saved in localStorage, so Gallery will show the NFT after the agent run.
 
 ---
 
-**Voiceover file location:**  
-`docs/ShieldGive_Demo_Voiceover.mp3`
+## YouTube upload
 
-You can download it and use it directly in your editor.
+**Title**
+```
+ShieldGive Demo — Private Zcash Donations + Automatic Solana NFT Proof
+```
+
+**Description**
+```
+ShieldGive enables private donations via Zcash shielded transactions while automatically minting a collectible NFT proof on Solana.
+
+• Donor identity and amount stay private on-chain
+• Background agent detects payment and mints the NFT — no claim step
+• Public gallery shows totals without revealing donors
+
+Built for Colosseum Crypto World's Fair — Zcash Track
+
+Live demo: https://shield-give.vercel.app/
+GitHub: https://github.com/wadezigh96/ShieldGive
+```
+
+**Tags**
+```
+Zcash, Solana, NFT, privacy, donation, Colosseum, hackathon, ShieldGive, shielded transactions
+```
+
+Keep the video **under 3 minutes**.
+
+---
+
+## Checklist
+
+- [ ] Title + Problem + Solution slides (dark background, white/teal text)
+- [ ] Live Campaign → register wallet
+- [ ] Live Agent → Run pipeline → SUCCESS logs visible
+- [ ] Live Gallery → totals + NFT proof visible
+- [ ] Closing slide with live URL + GitHub
+- [ ] English narration clear
+- [ ] 1080p, no personal keys or real funds on screen
