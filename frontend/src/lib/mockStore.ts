@@ -46,7 +46,7 @@ export const mockStore = {
     const donorId=memo?.match(/donor=([a-zA-Z0-9_-]+)/i)?.[1];
     const donor=state.donors.find(d=>d.id===donorId);
     addLog("info","Simulated shielded donation injected",{txId,amountZEC,donorId});
-    if(!donor){ addLog("warn","Payment detected but donor correlation failed — NFT not minted",{txId,donorId}); saveState(state); return {txId,amountZEC,message:"Donation rejected: donor correlation failed"}; }
+    if(!donor){ addLog("warn","Payment detected but donor correlation failed — proof not created",{txId,donorId}); saveState(state); return {txId,amountZEC,message:"Donation rejected: donor correlation failed"}; }
     await new Promise(r=>setTimeout(r,600)); state=loadState();
     const donation:DetectedDonation={id:uid(),txId,amountZEC,detectedAt:new Date().toISOString(),status:"pending",solanaWallet:donor.solanaWallet};
     state.donations.unshift(donation); donation.status="validated";
@@ -57,8 +57,8 @@ export const mockStore = {
     if(target){target.status="minted";target.nftMintAddress=mintAddress;}
     state.campaign.totalRaisedZEC=Math.round((state.campaign.totalRaisedZEC+amountZEC)*1e8)/1e8;
     state.campaign.donationCount+=1;
-    addLog("success","NFT minted (demo mode)",{mintAddress,recipientWallet:donor.solanaWallet});
-    addLog("success","Donation proof NFT minted & campaign updated",{mintAddress,totalRaisedZEC:state.campaign.totalRaisedZEC});
+    addLog("success","Demo proof created",{mintAddress,recipientWallet:donor.solanaWallet});
+    addLog("success","Donation proof created & campaign updated",{mintAddress,totalRaisedZEC:state.campaign.totalRaisedZEC});
     saveState(state); return {txId,amountZEC,message:"Simulated donation processed through the agent pipeline"};
   },
   reset():void { localStorage.removeItem(STORAGE_KEY); state=loadState(); },
