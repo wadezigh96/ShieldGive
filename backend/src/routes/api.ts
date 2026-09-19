@@ -6,20 +6,9 @@ import { processIncomingTx } from "../agent/pipeline.js";
 
 const router = Router();
 
-// ---------------------------------------------------------------------------
-// Campaign
-// ---------------------------------------------------------------------------
-
 router.get("/campaign", (_req, res) => {
-  res.json({
-    success: true,
-    data: storage.getCampaign(),
-  });
+  res.json({ success: true, data: storage.getCampaign() });
 });
-
-// ---------------------------------------------------------------------------
-// Donor registration
-// ---------------------------------------------------------------------------
 
 const registerSchema = z.object({
   solanaWallet: z.string().min(32).max(64),
@@ -33,12 +22,10 @@ router.post("/register", (req, res) => {
 
     storage.addAgentLog("info", "Donor wallet registered", {
       solanaWallet: registration.solanaWallet,
+      donorId: registration.id,
     });
 
-    res.status(201).json({
-      success: true,
-      data: registration,
-    });
+    res.status(201).json({ success: true, data: registration });
   } catch (err) {
     if (err instanceof z.ZodError) {
       res.status(400).json({ success: false, error: err.flatten() });
@@ -50,33 +37,16 @@ router.post("/register", (req, res) => {
 });
 
 router.get("/donors", (_req, res) => {
-  res.json({
-    success: true,
-    data: storage.getDonors(),
-  });
+  res.json({ success: true, data: storage.getDonors() });
 });
-
-// ---------------------------------------------------------------------------
-// Donations & Gallery
-// ---------------------------------------------------------------------------
 
 router.get("/donations", (_req, res) => {
-  res.json({
-    success: true,
-    data: storage.getDonations(),
-  });
+  res.json({ success: true, data: storage.getDonations() });
 });
-
-// ---------------------------------------------------------------------------
-// Agent logs & status (for demo dashboard)
-// ---------------------------------------------------------------------------
 
 router.get("/agent/logs", (req, res) => {
   const limit = Math.min(100, parseInt(String(req.query.limit || "40"), 10));
-  res.json({
-    success: true,
-    data: storage.getAgentLogs(limit),
-  });
+  res.json({ success: true, data: storage.getAgentLogs(limit) });
 });
 
 router.get("/agent/status", (_req, res) => {
@@ -84,17 +54,15 @@ router.get("/agent/status", (_req, res) => {
     success: true,
     data: {
       mockZcash: zcashWatcher.isMockMode(),
-      mockSolana: process.env.SOLANA_PRIVATE_KEY === "mock" || !process.env.SOLANA_PRIVATE_KEY,
+      mockSolana:
+        process.env.SOLANA_PRIVATE_KEY === "mock" ||
+        !process.env.SOLANA_PRIVATE_KEY,
       pollIntervalSeconds: parseInt(process.env.POLL_INTERVAL_SECONDS || "30", 10),
       totalDonations: storage.getDonations().length,
       registeredDonors: storage.getDonors().length,
     },
   });
 });
-
-// ---------------------------------------------------------------------------
-// Demo helpers — simulate a shielded donation
-// ---------------------------------------------------------------------------
 
 const simulateSchema = z.object({
   amountZEC: z.number().positive().max(1000),
@@ -108,7 +76,6 @@ router.post("/agent/simulate", async (req, res) => {
       memo: body.memo,
     });
 
-    // Immediately process through the same pipeline the cron job uses
     await processIncomingTx(tx);
 
     res.status(201).json({
