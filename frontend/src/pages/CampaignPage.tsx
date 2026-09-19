@@ -90,9 +90,9 @@ export default function CampaignPage() {
         <div className="flex items-center justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold text-white">2. Connect your Solana wallet</h2>
-            <p className="mt-1 text-sm text-slate-400">Connect with Privy to create or use a Solana wallet for your contribution proof.</p>
+            <p className="mt-1 text-sm text-slate-400">Privy is configured for Solana-only wallet login. Use a Solana wallet here for your contribution proof.</p>
           </div>
-          {authenticated ? <button type="button" onClick={logout} className="btn-secondary shrink-0">Disconnect</button> : <button type="button" onClick={login} className="btn-primary shrink-0">Connect Privy</button>}
+          {authenticated ? <button type="button" onClick={logout} className="btn-secondary shrink-0">Disconnect</button> : <button type="button" onClick={login} className="btn-primary shrink-0">Connect Solana Wallet</button>}
         </div>
         <div className="rounded-xl bg-slate-950 border border-slate-700 p-4">
           <p className="text-xs text-slate-500 mb-1">Solana proof wallet</p>
