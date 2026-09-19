@@ -24,6 +24,8 @@ export default function GalleryPage() {
   }
 
   const minted = donations.filter((d) => d.status === "minted");
+  const demoProofs = minted.filter((d) => d.nftMintAddress?.startsWith("mint_"));
+  const liveProofs = minted.filter((d) => !!d.nftMintAddress && !d.nftMintAddress.startsWith("mint_"));
 
   return (
     <div className="mx-auto max-w-4xl px-4 sm:px-6 py-10 space-y-8">
@@ -54,14 +56,17 @@ export default function GalleryPage() {
           </p>
         </div>
         <div className="card p-5">
-          <p className="text-xs text-slate-400">Demo Proofs</p>
+          <p className="text-xs text-slate-400">Proofs</p>
           <p className="mt-1 text-2xl font-semibold text-white font-mono">
             {minted.length}
+          </p>
+          <p className="mt-1 text-[11px] text-slate-600">
+            {demoProofs.length} demo · {liveProofs.length} live
           </p>
         </div>
       </section>
 
-      {/* NFT list */}
+      {/* Proof list */}
       <section className="card overflow-hidden">
         <div className="border-b border-slate-800 px-6 py-4">
           <h2 className="font-semibold text-white">Contribution Proofs</h2>
@@ -81,15 +86,18 @@ export default function GalleryPage() {
               >
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <span className="badge bg-amber-500/15 text-amber-300">
-                      Demo Mint
+                    <span className={d.nftMintAddress?.startsWith("mint_")
+                      ? "badge bg-amber-500/15 text-amber-300"
+                      : "badge bg-shield-500/15 text-shield-300"}>
+                      {d.nftMintAddress?.startsWith("mint_") ? "Demo Proof" : "Live On-chain"}
                     </span>
                     <span className="text-sm font-mono text-slate-300">
                       {d.amountZEC} ZEC
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 font-mono truncate max-w-md">
-                    Demo proof: {d.nftMintAddress}
+                    {d.nftMintAddress?.startsWith("mint_") ? "Demo proof: " : "Solana mint: "}
+                    {d.nftMintAddress}
                   </p>
                   {d.solanaWallet && (
                     <p className="text-xs text-slate-600 font-mono truncate max-w-md">
