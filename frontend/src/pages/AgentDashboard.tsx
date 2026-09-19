@@ -60,7 +60,14 @@ export default function AgentDashboard() {
   return (
     <div className="mx-auto max-w-5xl px-4 sm:px-6 py-10 space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-white">Agent Dashboard</h1>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-2xl font-bold text-white">Agent Dashboard</h1>
+          {status && (
+            <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold tracking-wide text-amber-300">
+              {status.mode === "LIVE_BACKEND" ? "BACKEND CONNECTED" : "DEMO MODE"}
+            </span>
+          )}
+        </div>
         <p className="mt-1 text-slate-400 text-sm">
           Deterministic scheduled job: poll → correlate → validate → mint. Not an LLM agent.
         </p>
@@ -99,6 +106,7 @@ export default function AgentDashboard() {
         </h2>
         <p className="text-sm text-slate-400 mb-4">
           Demo-only injection using the same correlation and processing path as the scheduled agent.
+          {status?.mode === "DEMO_LOCAL" && " This browser is using the local demo store because the backend is unavailable."}
         </p>
 
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
