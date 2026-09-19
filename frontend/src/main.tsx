@@ -20,10 +20,10 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         appearance: {
           walletChainType: "solana-only",
           showWalletLoginFirst: true,
+          loginMethods: ["wallet"],
           // Keep a known-good Solana wallet allowlist; EVM wallets remain excluded.
           walletList: ["phantom", "solflare"],
         },
-        loginMethods: ["wallet"],
         embeddedWallets: {
           ethereum: { createOnLogin: "off" },
           solana: { createOnLogin: "all-users" },
