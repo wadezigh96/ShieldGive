@@ -20,9 +20,9 @@ class Storage {
   constructor() {
     this.campaign = {
       id: "camp_demo_001",
-      title: "Support Privacy Research",
+      title: "ShieldGive — Private Contribution Proofs",
       description:
-        "Help fund independent research into zero-knowledge proofs and private public goods. All donations are shielded — your identity stays private while you still receive a collectible NFT proof on Solana.",
+        "Make a private Zcash contribution and associate it with a verifiable Solana proof wallet. ShieldGive separates donor identity from the public proof layer and keeps the contribution workflow privacy-focused.",
       shieldedAddress:
         process.env.CAMPAIGN_SHIELDED_ADDRESS ||
         "zs1demoaddressxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
