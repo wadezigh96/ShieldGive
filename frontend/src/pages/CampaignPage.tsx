@@ -39,7 +39,7 @@ export default function CampaignPage() {
     setMessage(null);
     try {
       await api.register(wallet.trim(), note.trim() || undefined);
-      setMessage({ type: "success", text: "Privy wallet registered. You can now send a shielded donation — the agent will mint your NFT automatically." });
+      setMessage({ type: "success", text: "Wallet registered. Your contribution can now be associated with a Solana proof when live minting is enabled." });
       setNote("");
     } catch (err) {
       setMessage({ type: "error", text: err instanceof Error ? err.message : "Registration failed" });
@@ -59,7 +59,7 @@ export default function CampaignPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 sm:px-6 py-10 space-y-8">
       <section className="card p-8 sm:p-10">
-        <p className="text-xs font-medium uppercase tracking-wider text-shield-400 mb-2">Live Campaign</p>
+        <p className="text-xs font-medium uppercase tracking-wider text-shield-400 mb-2">Active Campaign</p>
         <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">{campaign.title}</h1>
         <p className="mt-3 text-slate-300 leading-relaxed">{campaign.description}</p>
         <div className="mt-8 grid grid-cols-2 gap-4">
@@ -75,10 +75,10 @@ export default function CampaignPage() {
       </section>
 
       <section className="card p-6 sm:p-8 space-y-4">
-        <h2 className="text-lg font-semibold text-white">1. Send a shielded donation</h2>
-        <p className="text-sm text-slate-400">Use any Zcash wallet that supports shielded transactions (Orchard / Sapling). Your identity and exact amount stay private on-chain.</p>
+        <h2 className="text-lg font-semibold text-white">1. Make a private contribution</h2>
+        <p className="text-sm text-slate-400">Send a shielded Zcash contribution using a wallet that supports Orchard or Sapling. ShieldGive is designed to minimize exposure of donor identity and transaction details.</p>
         <div className="rounded-xl bg-slate-950 border border-slate-700 p-4">
-          <p className="text-xs text-slate-500 mb-1">Campaign shielded address</p>
+          <p className="text-xs text-slate-500 mb-1">Campaign private address</p>
           <div className="flex items-center gap-2">
             <code className="flex-1 break-all text-sm font-mono text-zcash-gold">{campaign.shieldedAddress}</code>
             <button onClick={copyAddress} className="btn-secondary shrink-0 text-xs py-1.5 px-3">{copied ? "Copied" : "Copy"}</button>
@@ -90,34 +90,34 @@ export default function CampaignPage() {
         <div className="flex items-center justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold text-white">2. Connect your Solana wallet</h2>
-            <p className="mt-1 text-sm text-slate-400">Sign in with Privy to create or connect a Solana wallet. ShieldGive will use that wallet for the donation-proof NFT.</p>
+            <p className="mt-1 text-sm text-slate-400">Connect with Privy to create or use a Solana wallet for your contribution proof.</p>
           </div>
           {authenticated ? <button type="button" onClick={logout} className="btn-secondary shrink-0">Disconnect</button> : <button type="button" onClick={login} className="btn-primary shrink-0">Connect Privy</button>}
         </div>
         <div className="rounded-xl bg-slate-950 border border-slate-700 p-4">
-          <p className="text-xs text-slate-500 mb-1">Connected Solana wallet</p>
+          <p className="text-xs text-slate-500 mb-1">Solana proof wallet</p>
           <code className="break-all text-sm font-mono text-shield-300">{wallet || "Not connected"}</code>
         </div>
         <form onSubmit={handleRegister} className="space-y-4">
-          <input className="input" placeholder="Optional note, e.g. supporter from Jakarta" value={note} onChange={(e) => setNote(e.target.value)} />
+          <input className="input" placeholder="Optional supporter note" value={note} onChange={(e) => setNote(e.target.value)} />
           {message && (
             <div className={"rounded-xl px-4 py-3 text-sm " + (message.type === "success" ? "bg-shield-500/10 text-shield-300 border border-shield-500/30" : "bg-red-500/10 text-red-300 border border-red-500/30")}>
               {message.text}
             </div>
           )}
           <button type="submit" disabled={registering || !wallet} className="btn-primary w-full sm:w-auto">
-            {registering ? "Registering…" : "Register connected wallet"}
+            {registering ? "Registering…" : "Register wallet for proof"}
           </button>
         </form>
       </section>
 
       <section className="card p-6 sm:p-8">
-        <h2 className="text-lg font-semibold text-white mb-4">How it works</h2>
+        <h2 className="text-lg font-semibold text-white mb-4">How ShieldGive works</h2>
         <ol className="space-y-3 text-sm text-slate-300">
           <li>1. Connect or create a Solana wallet with Privy.</li>
-          <li>2. Send ZEC to the shielded address using any Zcash wallet.</li>
-          <li>3. The background agent detects the payment via viewing key.</li>
-          <li>4. An NFT proof is minted automatically to your registered Solana wallet.</li>
+          <li>2. Send a shielded Zcash contribution to the campaign address.</li>
+          <li>3. ShieldGive detects and validates the contribution through its processing workflow.</li>
+          <li>4. A contribution proof can be minted to your registered Solana wallet when live Solana minting is enabled.</li>
         </ol>
       </section>
     </div>
