@@ -1,6 +1,6 @@
 import { mockStore } from "./mockStore";
 
-const BASE = "/api";
+const BASE = (import.meta.env.VITE_API_URL || "/api").replace(/\/$/, "");
 
 export interface Campaign {
   id: string; title: string; description: string; shieldedAddress: string;
