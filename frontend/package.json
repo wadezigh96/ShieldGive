@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@privy-io/react-auth": "^3.43.0",
-    "@solana-program/memo": "^0.7.0",
+    "@solana-program/memo": "^0.14.1",
     "@solana-program/system": "^0.7.0",
     "@solana-program/token": "^0.7.0",
     "@solana/kit": "^5.0.0",
