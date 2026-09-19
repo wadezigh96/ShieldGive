@@ -20,6 +20,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         appearance: {
           walletChainType: "solana-only",
           showWalletLoginFirst: true,
+          // Restrict the wallet picker to Solana wallets so EVM wallets are not offered.
+          walletList: ["phantom", "solflare"],
         },
         loginMethods: ["wallet"],
         embeddedWallets: {
