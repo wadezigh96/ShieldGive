@@ -11,7 +11,7 @@ ShieldGive
 
 ## 2. Short Description (≤ 50 words recommended)
 ```
-ShieldGive enables private donations via Zcash shielded transactions while automatically minting a collectible NFT proof on Solana. Donors stay anonymous on-chain, yet receive verifiable, ownable proof of contribution — no manual claims, no exposed identity.
+ShieldGive demonstrates private donations via Zcash shielded transactions with a Solana contribution-proof layer. The public demo uses deterministic mock detection and proof creation, while the architecture is prepared for live Zcash monitoring and Solana minting.
 ```
 
 ## 3. Longer Product Description (for portal / pitch)
@@ -21,9 +21,9 @@ On-chain donations permanently expose donor identity and amounts. Privacy-consci
 ShieldGive solves this with a simple, automated pipeline:
 
 1. Donor registers a Solana wallet once.
-2. Donor sends ZEC to a campaign shielded address.
-3. A background agent is designed to detect the payment through a Zcash viewing-key integration; the current public demo uses a deterministic mock watcher when no live Zcash backend is configured.
-4. The agent then routes the validated donation to an NFT-minting service; the current public demo uses a deterministic mock mint unless a live Solana mint configuration is supplied.
+2. Donor registers a Solana proof wallet and the campaign provides a shielded Zcash address.
+3. The background agent is designed to detect payments through a Zcash viewing-key integration; the public demo uses deterministic local simulation.
+4. The validated contribution becomes a proof record; live Solana NFT minting is a separate production configuration.
 5. The public gallery shows total raised without revealing any donor identities.
 
 The “agent” is not an LLM — it is a reliable, low-complexity background worker that runs the fixed sequence: poll → validate → mint. This keeps the system trustworthy while still demonstrating autonomous execution for judges.
@@ -45,13 +45,13 @@ https://github.com/wadezigh96/ShieldGive
 
 ## 6. Live Product / Demo URL
 ```
-Live demo URL: **TBD — verify the deployed URL before submission.**
+Live demo URL: https://shield-give.vercel.app/
 ```
 **How judges can test:**
-1. Open the Campaign page → register any Solana wallet address.
+1. Open the Campaign page → connect Privy and register a Solana wallet.
 2. Go to the Agent Dashboard → enter an amount (e.g. 0.25) → click “Run agent pipeline”.
-3. Watch the live agent log: detection → validation → NFT mint.
-4. Check the Gallery: total raised updates, NFT proof appears (wallet partially redacted).
+3. Watch the activity log: correlation → validation → demo proof created.
+4. Open Proof Gallery: total raised updates and the record is labeled “Demo Proof”.
 
 The public demo can run without a real Zcash node or funded Solana key. In that configuration it is explicitly labeled **DEMO MODE** and uses deterministic local/mock state; it should not be described as a live on-chain Zcash-to-Solana mint.
 
@@ -133,7 +133,7 @@ Export a high-resolution PNG (512×512 or 1024×1024) for the portal upload.
 - [ ] Account created on colosseum.com and joined Crypto World's Fair
 - [ ] All team members have accounts
 - [ ] GitHub repo public (or access granted to hackathon@colosseum.com)
-- [ ] Live demo URL verified and added
+- [ ] Live demo URL verified and added: https://shield-give.vercel.app/
 - [ ] Logo uploaded
 - [ ] Pitch video (≤ 3 min) uploaded and accurately describes demo/live status
 - [ ] Demo video (≤ 3 min) uploaded and accurately labels mock/live components
