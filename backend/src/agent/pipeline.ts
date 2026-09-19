@@ -8,11 +8,20 @@ import { solanaMinter } from "../services/solanaMinter.js";
  * Fixed sequence:
  *   1. Poll (or receive) new shielded transactions
  *   2. Skip already-processed txids
- *   3. Attach a registered Solana wallet (demo heuristic: latest donor)
+ *   3. Correlate the payment to a registered donor using the private memo code
  *   4. Validate basic constraints
  *   5. Mint NFT proof
  *   6. Update campaign totals + agent log
+ *
+ * The memo correlation is intentional: the previous "latest donor" heuristic
+ * could send Alice's proof to Bob when multiple donors were registered.
  */
+function donorIdFromMemo(memo?: string): string | undefined {
+  if (!memo) return undefined;
+  const match = memo.match(/(?:shieldgive[:\s]+)?donor[=:]([a-zA-Z0-9_-]+)/i);
+  return match?.[1];
+}
+
 export async function processIncomingTx(
   tx: IncomingShieldedTx
 ): Promise<void> {
@@ -30,10 +39,8 @@ export async function processIncomingTx(
     amountZEC: tx.amountZEC,
   });
 
-  // Demo heuristic: assign the most recently registered donor.
-  // In a production multi-donor system you would match via memo,
-  // unique payment address, or a short registration code.
-  const donor = storage.getLatestDonor();
+  const donorId = donorIdFromMemo(tx.memo);
+  const donor = donorId ? storage.getDonors().find((d) => d.id === donorId) : undefined;
 
   const donation = storage.addDonation({
     txId: tx.txId,
@@ -46,19 +53,18 @@ export async function processIncomingTx(
   if (!donor) {
     storage.updateDonation(donation.id, {
       status: "failed",
-      error: "No registered Solana wallet found",
+      error: donorId
+        ? "Donation memo did not match a registered donor"
+        : "Donation memo missing ShieldGive donor code",
     });
     storage.addAgentLog(
       "warn",
-      "Payment detected but no Solana wallet registered yet — NFT not minted",
-      { txId: tx.txId, donationId: donation.id }
+      "Payment detected but donor correlation failed — NFT not minted",
+      { txId: tx.txId, donationId: donation.id, memo: tx.memo }
     );
-    // Still count the funds for the gallery
-    storage.recordRaised(tx.amountZEC);
     return;
   }
 
-  // Basic validation
   if (tx.amountZEC <= 0) {
     storage.updateDonation(donation.id, {
       status: "failed",
@@ -75,9 +81,9 @@ export async function processIncomingTx(
   storage.addAgentLog("success", "Payment validated", {
     donationId: donation.id,
     solanaWallet: donor.solanaWallet,
+    donorId: donor.id,
   });
 
-  // Mint
   const mintResult = await solanaMinter.mintDonationProof({
     recipientWallet: donor.solanaWallet,
     amountZEC: tx.amountZEC,
@@ -108,9 +114,7 @@ export async function processIncomingTx(
   }
 }
 
-/**
- * Single agent tick — called by the cron scheduler.
- */
+/** Single agent tick — called by the cron scheduler. */
 export async function agentTick(): Promise<void> {
   storage.addAgentLog("info", "Agent tick — polling for new shielded transactions");
 
