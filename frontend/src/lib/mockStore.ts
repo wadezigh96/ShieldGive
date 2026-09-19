@@ -1,7 +1,7 @@
 /** Client-side deterministic demo store for static hosting. */
 import type { Campaign, DonorRegistration, DetectedDonation, AgentLogEntry, AgentStatus } from "./api";
 
-const STORAGE_KEY = "shieldgive_demo_v1";
+const STORAGE_KEY = "shieldgive_demo_v2";
 function uid(): string { return `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`; }
 
 interface PersistedState { campaign: Campaign; donors: DonorRegistration[]; donations: DetectedDonation[]; logs: AgentLogEntry[]; }
