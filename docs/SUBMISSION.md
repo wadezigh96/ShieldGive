@@ -1,8 +1,6 @@
 # ShieldGive — Colosseum Crypto World's Fair Submission Pack
 
-**Ready-to-paste content for the Colosseum submission portal**  
-Deadline: **October 12, 2026**  
-Track: **Zcash Track** (+ eligible for General Prize Pool)
+**Submission draft — verify portal deadline/track details before final submission**
 
 ---
 
@@ -24,8 +22,8 @@ ShieldGive solves this with a simple, automated pipeline:
 
 1. Donor registers a Solana wallet once.
 2. Donor sends ZEC to a campaign shielded address.
-3. A background agent (deterministic scheduled job using a viewing key) detects the payment.
-4. The agent immediately mints an NFT proof to the donor’s Solana wallet via Metaplex.
+3. A background agent is designed to detect the payment through a Zcash viewing-key integration; the current public demo uses a deterministic mock watcher when no live Zcash backend is configured.
+4. The agent then routes the validated donation to an NFT-minting service; the current public demo uses a deterministic mock mint unless a live Solana mint configuration is supplied.
 5. The public gallery shows total raised without revealing any donor identities.
 
 The “agent” is not an LLM — it is a reliable, low-complexity background worker that runs the fixed sequence: poll → validate → mint. This keeps the system trustworthy while still demonstrating autonomous execution for judges.
@@ -33,8 +31,8 @@ The “agent” is not an LLM — it is a reliable, low-complexity background wo
 
 ## 4. Blockchains & Tools
 ```
-- Zcash: Shielded transactions (Orchard/Sapling) + viewing key for private monitoring
-- Solana: Metaplex / UMI for automatic NFT minting of donation proofs
+- Zcash: Shielded-transaction UX and a planned viewing-key watcher; public demo currently supports mock detection
+- Solana: NFT proof flow with mock mint in the public demo; Metaplex/UMI is the intended live mint integration
 - Backend: Node.js + TypeScript + node-cron (agent)
 - Frontend: React + Vite + Tailwind
 ```
@@ -47,7 +45,7 @@ https://github.com/wadezigh96/ShieldGive
 
 ## 6. Live Product / Demo URL
 ```
-[Paste your deployed frontend URL here after deployment]
+Live demo URL: **TBD — verify the deployed URL before submission.**
 ```
 **How judges can test:**
 1. Open the Campaign page → register any Solana wallet address.
@@ -55,7 +53,7 @@ https://github.com/wadezigh96/ShieldGive
 3. Watch the live agent log: detection → validation → NFT mint.
 4. Check the Gallery: total raised updates, NFT proof appears (wallet partially redacted).
 
-No real Zcash node or funded Solana key is required for the demo — the pipeline runs end-to-end in mock mode that mirrors the real flow.
+The public demo can run without a real Zcash node or funded Solana key. In that configuration it is explicitly labeled **DEMO MODE** and uses deterministic local/mock state; it should not be described as a live on-chain Zcash-to-Solana mint.
 
 ## 7. Go-to-Market Strategy
 ```
@@ -84,13 +82,13 @@ Monetization (post-MVP):
 
 ## 9. Team Background (template — fill with real details)
 ```
-[Your Name] — [Role, e.g. Founder / Engineer]
-Background: [1–2 sentences about relevant experience: privacy tech, Solana, Zcash, product, previous startups, etc.]
+[Your Name] — [Role]
+Background: [1–2 sentences about your actual experience]
 
-[Co-founder Name if any] — [Role]
-Background: [...]
+[Co-founder Name, if any] — [Role]
+Background: [Actual background]
 
-Location: [City, Country]
+Location: [Actual city, country]
 ```
 
 ## 10. Pitch Video Script (~2:30)
@@ -103,7 +101,7 @@ Location: [City, Country]
 
 **[0:50 – 1:20] Demo**  
 (Show screen recording of the actual product)  
-“Here’s the live product. Register a Solana wallet, simulate a shielded donation, and watch the agent detect it, validate it, and mint the NFT in real time. The gallery updates the total raised while keeping every donor private.”
+“Here’s the public demo. Register a Solana wallet, run the demo donation pipeline, and watch the agent correlate, validate, and produce a demo NFT proof. The interface clearly labels mock components so judges can distinguish the demonstration from live blockchain integrations.”
 
 **[1:20 – 1:50] Why this combination**  
 “We deliberately chose native Zcash shielded transactions instead of custom ZK circuits, and Metaplex on Solana for the proof layer. The agent is a deterministic scheduled job — simple, reliable, and easy for judges to verify. This combination is rare and highly differentiated.”
@@ -112,7 +110,7 @@ Location: [City, Country]
 “Privacy-preserving public goods funding is still early. ShieldGive is the first step toward a platform where creators can raise funds without forcing donors to choose between privacy and recognition. Post-hackathon we plan multi-campaign support, real-time detection, and multi-chain NFT proofs.”
 
 **[2:20 – 2:30] Close**  
-“ShieldGive — private donations, collectible proof, zero manual friction. Thank you.”
+“ShieldGive — private donation UX with automated proof. Thank you.”
 
 ## 11. Demo Video Script (~2:00)
 
@@ -135,17 +133,17 @@ Export a high-resolution PNG (512×512 or 1024×1024) for the portal upload.
 - [ ] Account created on colosseum.com and joined Crypto World's Fair
 - [ ] All team members have accounts
 - [ ] GitHub repo public (or access granted to hackathon@colosseum.com)
-- [ ] Live demo URL working
+- [ ] Live demo URL verified and added
 - [ ] Logo uploaded
-- [ ] Pitch video (≤ 3 min) uploaded
-- [ ] Demo video (≤ 3 min) uploaded
+- [ ] Pitch video (≤ 3 min) uploaded and accurately describes demo/live status
+- [ ] Demo video (≤ 3 min) uploaded and accurately labels mock/live components
 - [ ] Short description + longer description filled
 - [ ] Blockchains listed (Zcash + Solana)
 - [ ] GTM + demand validation written
-- [ ] Team bios completed
+- [ ] Team bios completed with real details
 - [ ] Weekly update videos (optional but recommended)
 
 ---
 
 **Repo:** https://github.com/wadezigh96/ShieldGive  
-**Track:** Zcash Track ($100k across top 10) + General Prize Pool (top 21)
+**Track:** Verify the current official event portal before submitting.
