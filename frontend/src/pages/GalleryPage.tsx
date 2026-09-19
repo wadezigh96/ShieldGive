@@ -69,8 +69,8 @@ export default function GalleryPage() {
 
         {minted.length === 0 ? (
           <div className="px-6 py-12 text-center text-slate-500 text-sm">
-            No NFTs minted yet. Register a wallet and simulate (or send) a
-            donation to see the first proof appear.
+            No demo proofs yet. Register a wallet and run the demo donation pipeline
+            to create the first proof.
           </div>
         ) : (
           <ul className="divide-y divide-slate-800">
