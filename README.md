@@ -1,10 +1,10 @@
 # ShieldGive
 
-**Private Donation Proof via Zcash + Automatic Solana NFT Minting**
+**Private Donation Proof via Zcash + Solana proof infrastructure**
 
 > MVP built for the **Colosseum Crypto World's Fair — Zcash Track**
 
-ShieldGive lets donors support campaigns through **shielded Zcash transactions** (identity and amount stay private on-chain) while automatically receiving a **collectible NFT proof** on Solana — with zero manual claiming.
+ShieldGive demonstrates a privacy-focused donation workflow using **shielded Zcash transactions** and a Solana proof layer. The public demo clearly separates deterministic mock processing from planned live Zcash detection and Solana minting.
 
 ---
 
@@ -22,9 +22,9 @@ Donors who prefer privacy usually receive **no verifiable proof** they can colle
 
 1. Donor registers their Solana wallet once.
 2. Donor sends ZEC via a **shielded address**.
-3. A background **agent** continuously monitors the shielded pool using a viewing key.
-4. When a valid payment is detected, the agent **automatically mints** an NFT proof to the donor’s Solana wallet.
-5. The campaign gallery shows total raised **without revealing any donor identities**.
+3. A background **agent** is designed to monitor the shielded pool using a viewing key.
+4. When a valid payment is detected, the agent creates a contribution proof; the public demo uses a deterministic mock proof until live Solana minting is configured.
+5. The campaign gallery shows totals and clearly labels demo vs live proof records.
 
 No manual “claim” button. No transaction hash pasting. Fully automatic.
 
@@ -75,8 +75,8 @@ This keeps complexity low while still demonstrating autonomous execution for the
 | Frontend           | React + Vite + Tailwind CSS         |
 | Backend + Agent    | Node.js + TypeScript + Express      |
 | Scheduling         | `node-cron`                         |
-| Zcash              | Viewing key + light client (mocked for demo) |
-| Solana             | `@metaplex-foundation/js` / UMI     |
+| Zcash              | Viewing key + light client (mocked for public demo) |
+| Solana             | Metaplex / UMI intended for live minting; demo uses local proof records |
 | Database (demo)    | In-memory / JSON file               |
 
 ---
@@ -165,10 +165,10 @@ Open http://localhost:5173
 ## Demo Flow (≈ 2 minutes)
 
 1. Open the campaign page → register a Solana wallet.
-2. Simulate (or send) a shielded Zcash donation.
-3. Watch the **Agent Dashboard** log: detection → validation → mint triggered.
-4. NFT appears in the donor’s Solana wallet.
-5. Gallery updates total raised — no donor identities shown.
+2. Register a Solana wallet, then run the demo donation pipeline.
+3. Watch the **Agent Dashboard** log: correlation → validation → demo proof created.
+4. Open **Proof Gallery** and verify the proof is explicitly labeled **Demo Proof**.
+5. For production, live Zcash detection and Solana minting must be configured separately.
 
 ---
 
