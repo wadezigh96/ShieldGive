@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import {
-  api,
-  type AgentLogEntry,
-  type AgentStatus,
-} from "../lib/api";
+import { api, type AgentLogEntry, type AgentStatus } from "../lib/api";
 
 export default function AgentDashboard() {
   const [logs, setLogs] = useState<AgentLogEntry[]>([]);
@@ -14,10 +10,7 @@ export default function AgentDashboard() {
 
   const refresh = useCallback(async () => {
     try {
-      const [l, s] = await Promise.all([
-        api.getAgentLogs(50),
-        api.getAgentStatus(),
-      ]);
+      const [l, s] = await Promise.all([api.getAgentLogs(50), api.getAgentStatus()]);
       setLogs(l);
       setStatus(s);
       setError(null);
@@ -38,10 +31,17 @@ export default function AgentDashboard() {
       setError("Enter a valid positive amount");
       return;
     }
+
     setSimulating(true);
     setError(null);
+
     try {
-      await api.simulateDonation(value, "Demo donation from Agent Dashboard");
+      const donors = await api.getDonors();
+      const donor = donors[0];
+      if (!donor) {
+        throw new Error("Register a Solana wallet on the Campaign page first.");
+      }
+      await api.simulateDonation(value, `ShieldGive donor=${donor.id}`);
       await refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Simulation failed");
@@ -62,12 +62,10 @@ export default function AgentDashboard() {
       <div>
         <h1 className="text-2xl font-bold text-white">Agent Dashboard</h1>
         <p className="mt-1 text-slate-400 text-sm">
-          Live view of the automated monitoring & minting pipeline. This is a
-          deterministic scheduled job — not an LLM agent.
+          Deterministic scheduled job: poll → correlate → validate → mint. Not an LLM agent.
         </p>
       </div>
 
-      {/* Status cards */}
       <section className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="card p-4">
           <p className="text-xs text-slate-400">Zcash Mode</p>
@@ -95,21 +93,17 @@ export default function AgentDashboard() {
         </div>
       </section>
 
-      {/* Simulate control — critical for the 2-min demo */}
       <section className="card p-6">
         <h2 className="text-lg font-semibold text-white mb-1">
           Simulate Shielded Donation
         </h2>
         <p className="text-sm text-slate-400 mb-4">
-          Inject a realistic payment into the same pipeline the cron job uses.
-          Perfect for the live demo when a real Zcash node is not available.
+          Demo-only injection using the same correlation and processing path as the scheduled agent.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
           <div className="w-full sm:w-40">
-            <label className="block text-xs text-slate-400 mb-1.5">
-              Amount (ZEC)
-            </label>
+            <label className="block text-xs text-slate-400 mb-1.5">Amount (ZEC)</label>
             <input
               type="number"
               step="0.01"
@@ -119,50 +113,32 @@ export default function AgentDashboard() {
               onChange={(e) => setAmount(e.target.value)}
             />
           </div>
-          <button
-            onClick={handleSimulate}
-            disabled={simulating}
-            className="btn-primary"
-          >
+          <button onClick={handleSimulate} disabled={simulating} className="btn-primary">
             {simulating ? "Processing…" : "Run agent pipeline"}
           </button>
         </div>
 
-        {error && (
-          <p className="mt-3 text-sm text-red-400">{error}</p>
-        )}
+        {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
       </section>
 
-      {/* Live logs */}
       <section className="card overflow-hidden">
         <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4">
           <h2 className="font-semibold text-white">Agent Activity Log</h2>
-          <button
-            onClick={refresh}
-            className="text-xs text-slate-400 hover:text-slate-200 transition"
-          >
+          <button onClick={refresh} className="text-xs text-slate-400 hover:text-slate-200 transition">
             Refresh
           </button>
         </div>
-
         <div className="max-h-[480px] overflow-y-auto font-mono text-xs">
           {logs.length === 0 ? (
-            <div className="px-6 py-10 text-center text-slate-500">
-              Waiting for agent activity…
-            </div>
+            <div className="px-6 py-10 text-center text-slate-500">Waiting for agent activity…</div>
           ) : (
             <ul className="divide-y divide-slate-800/80">
               {logs.map((entry) => (
-                <li
-                  key={entry.id}
-                  className="px-6 py-3 flex gap-4 hover:bg-slate-900/40"
-                >
+                <li key={entry.id} className="px-6 py-3 flex gap-4 hover:bg-slate-900/40">
                   <time className="shrink-0 text-slate-600 w-20">
                     {new Date(entry.timestamp).toLocaleTimeString()}
                   </time>
-                  <span
-                    className={`shrink-0 w-16 uppercase tracking-wide ${levelColor[entry.level]}`}
-                  >
+                  <span className={`shrink-0 w-16 uppercase tracking-wide ${levelColor[entry.level]}`}>
                     {entry.level}
                   </span>
                   <div className="min-w-0 flex-1">
