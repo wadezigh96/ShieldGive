@@ -8,81 +8,104 @@ export interface IncomingShieldedTx {
   receivedAt: string;
 }
 
-/**
- * Zcash shielded transaction watcher.
- *
- * Production path:
- *   - Use a viewing key with lightwalletd / zcashd RPC
- *   - or a dedicated light client that can decrypt incoming notes
- *   - Filter for notes arriving at the campaign shielded address
- *
- * For the hackathon MVP we provide a clean mock that can be
- * triggered via API or by the agent itself for demo purposes.
- */
+interface ZcashReceivedRecord {
+  pool?: string;
+  txid: string;
+  amount?: number;
+  amountZat?: number;
+  memo?: string;
+  memoStr?: string;
+  confirmations?: number;
+  blockheight?: number;
+  blocktime?: number;
+}
+
+interface JsonRpcResponse<T> {
+  result?: T;
+  error?: { code?: number; message?: string };
+}
+
+async function zcashRpc<T>(method: string, params: unknown[]): Promise<T> {
+  const url = process.env.ZCASH_RPC_URL;
+  if (!url) throw new Error("ZCASH_RPC_URL is not configured");
+
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (process.env.ZCASH_RPC_USER || process.env.ZCASH_RPC_PASSWORD) {
+    const user = process.env.ZCASH_RPC_USER || "";
+    const password = process.env.ZCASH_RPC_PASSWORD || "";
+    headers.authorization = "Basic " + Buffer.from(`${user}:${password}`).toString("base64");
+  }
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ jsonrpc: "1.0", id: "shieldgive", method, params }),
+  });
+
+  if (!response.ok) throw new Error(`Zcash RPC HTTP ${response.status}`);
+  const body = (await response.json()) as JsonRpcResponse<T>;
+  if (body.error) throw new Error(body.error.message || "Zcash RPC error");
+  return body.result as T;
+}
+
+function decodeMemo(record: ZcashReceivedRecord): string | undefined {
+  if (record.memoStr) return record.memoStr;
+  if (!record.memo) return undefined;
+  try {
+    return Buffer.from(record.memo, "hex").toString("utf8").replace(/\0+$/g, "");
+  } catch {
+    return undefined;
+  }
+}
+
 export class ZcashWatcher {
   private mockMode: boolean;
 
   constructor() {
     this.mockMode =
-      !process.env.ZCASH_VIEWING_KEY ||
-      process.env.ZCASH_VIEWING_KEY === "mock";
+      process.env.ZCASH_MODE === "mock" ||
+      !process.env.ZCASH_RPC_URL ||
+      !process.env.CAMPAIGN_SHIELDED_ADDRESS ||
+      process.env.CAMPAIGN_SHIELDED_ADDRESS.startsWith("zs1demo");
   }
 
   isMockMode(): boolean {
     return this.mockMode;
   }
 
-  /**
-   * Poll for new incoming shielded transactions.
-   * In mock mode this returns an empty list unless a simulated
-   * donation has been injected via `simulateIncomingDonation`.
-   */
   async pollIncoming(): Promise<IncomingShieldedTx[]> {
-    if (this.mockMode) {
-      // In mock mode the agent does not invent donations.
-      // Use the /api/agent/simulate endpoint (or the dashboard button)
-      // to inject a realistic payment for the demo.
-      return [];
-    }
+    if (this.mockMode) return [];
 
-    // ------------------------------------------------------------------
-    // TODO: Real implementation
-    // ------------------------------------------------------------------
-    // 1. Connect to lightwalletd or zcashd with the viewing key
-    // 2. Query recent notes for the campaign shielded address
-    // 3. Decrypt and return only unprocessed transactions
-    //
-    // Example shape of a real response:
-    // return [
-    //   {
-    //     txId: "txid...",
-    //     amountZEC: 0.5,
-    //     blockHeight: 2_100_000,
-    //     receivedAt: new Date().toISOString(),
-    //   },
-    // ];
-    // ------------------------------------------------------------------
+    const address = process.env.CAMPAIGN_SHIELDED_ADDRESS!;
+    const minconf = Math.max(1, parseInt(process.env.ZCASH_MIN_CONFIRMATIONS || "1", 10));
 
-    storage.addAgentLog(
-      "warn",
-      "Real Zcash viewing-key polling not yet configured — running in mock mode"
+    // z_listreceivedbyaddress is the supported legacy Sapling RPC for
+    // wallet-tracked shielded addresses. The node must have the viewing key
+    // imported; the backend never receives a spending key.
+    const records = await zcashRpc<ZcashReceivedRecord[]>(
+      process.env.ZCASH_RPC_METHOD || "z_listreceivedbyaddress",
+      [address, minconf]
     );
-    return [];
+
+    return records
+      .filter((record) => record.txid && Number(record.amount ?? 0) > 0)
+      .map((record) => ({
+        txId: record.txid,
+        amountZEC: Number(record.amount ?? Number(record.amountZat || 0) / 100_000_000),
+        blockHeight: record.blockheight,
+        memo: decodeMemo(record),
+        receivedAt: record.blocktime
+          ? new Date(record.blocktime * 1000).toISOString()
+          : new Date().toISOString(),
+      }));
   }
 
-  /**
-   * Inject a simulated shielded donation (demo only).
-   * This is the recommended way to demonstrate the full pipeline
-   * during the 2-minute pitch without requiring a live Zcash node.
-   */
   async simulateIncomingDonation(
     amountZEC: number,
     options?: { txId?: string; memo?: string }
   ): Promise<IncomingShieldedTx> {
     const tx: IncomingShieldedTx = {
-      txId:
-        options?.txId ||
-        `mock_tx_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      txId: options?.txId || `mock_tx_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       amountZEC,
       receivedAt: new Date().toISOString(),
       memo: options?.memo || "ShieldGive donation",
