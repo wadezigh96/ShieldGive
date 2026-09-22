@@ -82,13 +82,22 @@ export class ZcashWatcher {
     // z_listreceivedbyaddress is the supported legacy Sapling RPC for
     // wallet-tracked shielded addresses. The node must have the viewing key
     // imported; the backend never receives a spending key.
+    const method = process.env.ZCASH_RPC_METHOD || "z_listtransactions";
     const records = await zcashRpc<ZcashReceivedRecord[]>(
-      process.env.ZCASH_RPC_METHOD || "z_listreceivedbyaddress",
-      [address, minconf]
+      method,
+      method === "z_listreceivedbyaddress"
+        ? [address, minconf]
+        : [undefined, process.env.ZCASH_TX_LIMIT ? parseInt(process.env.ZCASH_TX_LIMIT, 10) : 100]
     );
 
     return records
-      .filter((record) => record.txid && Number(record.amount ?? 0) > 0)
+      .filter((record) => {
+        const amount = Number(record.amount ?? 0);
+        const recordAddress = (record as any).address as string | undefined;
+        const confirmations = Number((record as any).confirmations ?? 0);
+        return record.txid && amount > 0 && confirmations >= minconf &&
+          (!recordAddress || recordAddress === address);
+      })
       .map((record) => ({
         txId: record.txid,
         amountZEC: Number(record.amount ?? Number(record.amountZat || 0) / 100_000_000),
