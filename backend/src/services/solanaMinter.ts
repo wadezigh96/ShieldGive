@@ -1,8 +1,8 @@
 import { storage } from "./storage.js";
 import type { MintResult } from "../types/index.js";
 import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
-import { createNft } from "@metaplex-foundation/mpl-token-metadata";
-import { keypairIdentity, publicKey, signerIdentity, generateSigner, percentAmount } from "@metaplex-foundation/umi";
+import { createNft, mplTokenMetadata } from "@metaplex-foundation/mpl-token-metadata";
+import { keypairIdentity, publicKey, generateSigner, percentAmount } from "@metaplex-foundation/umi";
 import bs58 from "bs58";
 
 function loadSecretKey(): Uint8Array {
@@ -49,7 +49,7 @@ export class SolanaMinter {
 
     try {
       const rpc = process.env.SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
-      const umi = createUmi(rpc);
+      const umi = createUmi(rpc).use(mplTokenMetadata());
       const keypair = umi.eddsa.createKeypairFromSecretKey(loadSecretKey());
       umi.use(keypairIdentity(keypair));
 
@@ -71,7 +71,7 @@ export class SolanaMinter {
         tokenOwner: publicKey(recipientWallet),
       }).sendAndConfirm(umi);
 
-      const signature = Buffer.from(result.signature).toString("base64");
+      const signature = Buffer.from(result.signature).toString("base64url");
       const mintAddress = mint.publicKey.toString();
 
       storage.addAgentLog("success", "NFT minted on Solana", {
