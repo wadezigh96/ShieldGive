@@ -7,14 +7,15 @@ import { solanaMinter } from "../services/solanaMinter.js";
  *
  * Fixed sequence:
  *   1. Poll (or receive) new shielded transactions
- *   2. Skip already-processed txids
+ *   2. Skip transactions that already completed successfully
  *   3. Correlate the payment to a registered donor using the private memo code
  *   4. Validate basic constraints
  *   5. Mint NFT proof
  *   6. Update campaign totals + agent log
  *
- * The memo correlation is intentional: the previous "latest donor" heuristic
- * could send Alice's proof to Bob when multiple donors were registered.
+ * A transaction is marked processed only after successful minting. This keeps
+ * failed mint attempts retryable across polling cycles while the MVP uses its
+ * in-memory store.
  */
 function donorIdFromMemo(memo?: string): string | undefined {
   if (!memo) return undefined;
@@ -22,17 +23,13 @@ function donorIdFromMemo(memo?: string): string | undefined {
   return match?.[1];
 }
 
-export async function processIncomingTx(
-  tx: IncomingShieldedTx
-): Promise<void> {
+export async function processIncomingTx(tx: IncomingShieldedTx): Promise<void> {
   if (storage.isTxProcessed(tx.txId)) {
-    storage.addAgentLog("info", "Skipping already-processed tx", {
+    storage.addAgentLog("info", "Skipping successfully processed tx", {
       txId: tx.txId,
     });
     return;
   }
-
-  storage.markTxProcessed(tx.txId);
 
   storage.addAgentLog("info", "New shielded transaction detected", {
     txId: tx.txId,
@@ -40,7 +37,9 @@ export async function processIncomingTx(
   });
 
   const donorId = donorIdFromMemo(tx.memo);
-  const donor = donorId ? storage.getDonors().find((d) => d.id === donorId) : undefined;
+  const donor = donorId
+    ? storage.getDonors().find((d) => d.id === donorId)
+    : undefined;
 
   const donation = storage.addDonation({
     txId: tx.txId,
@@ -84,38 +83,66 @@ export async function processIncomingTx(
     donorId: donor.id,
   });
 
-  const mintResult = await solanaMinter.mintDonationProof({
-    recipientWallet: donor.solanaWallet,
-    amountZEC: tx.amountZEC,
-    donationId: donation.id,
-    txId: tx.txId,
-  });
-
-  if (mintResult.success) {
-    storage.updateDonation(donation.id, {
-      status: "minted",
-      nftMintAddress: mintResult.mintAddress,
-    });
-    storage.recordRaised(tx.amountZEC);
-    storage.addAgentLog("success", "Donation proof NFT minted & campaign updated", {
+  try {
+    const mintResult = await solanaMinter.mintDonationProof({
+      recipientWallet: donor.solanaWallet,
+      amountZEC: tx.amountZEC,
       donationId: donation.id,
-      mintAddress: mintResult.mintAddress,
-      totalRaisedZEC: storage.getCampaign().totalRaisedZEC,
+      txId: tx.txId,
     });
-  } else {
+
+    if (mintResult.success) {
+      storage.updateDonation(donation.id, {
+        status: "minted",
+        nftMintAddress: mintResult.mintAddress,
+      });
+      storage.recordRaised(tx.amountZEC);
+      storage.markTxProcessed(tx.txId);
+      storage.addAgentLog(
+        "success",
+        "Donation proof NFT minted & campaign updated",
+        {
+          donationId: donation.id,
+          mintAddress: mintResult.mintAddress,
+          totalRaisedZEC: storage.getCampaign().totalRaisedZEC,
+        }
+      );
+      return;
+    }
+
     storage.updateDonation(donation.id, {
       status: "failed",
-      error: mintResult.error || "Mint failed",
+      error: mintResult.error || "Mint failed — will retry",
     });
-    storage.addAgentLog("error", "NFT mint failed", {
+    storage.addAgentLog("warn", "NFT mint failed — transaction remains retryable", {
+      txId: tx.txId,
       donationId: donation.id,
       error: mintResult.error,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    storage.updateDonation(donation.id, {
+      status: "failed",
+      error: `${message} — will retry`,
+    });
+    storage.addAgentLog("warn", "NFT mint threw an error — transaction remains retryable", {
+      txId: tx.txId,
+      donationId: donation.id,
+      error: message,
     });
   }
 }
 
+let tickRunning = false;
+
 /** Single agent tick — called by the cron scheduler. */
 export async function agentTick(): Promise<void> {
+  if (tickRunning) {
+    storage.addAgentLog("info", "Agent tick skipped — previous tick still running");
+    return;
+  }
+
+  tickRunning = true;
   storage.addAgentLog("info", "Agent tick — polling for new shielded transactions");
 
   try {
@@ -132,5 +159,7 @@ export async function agentTick(): Promise<void> {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     storage.addAgentLog("error", "Agent tick failed", { error: message });
+  } finally {
+    tickRunning = false;
   }
 }
