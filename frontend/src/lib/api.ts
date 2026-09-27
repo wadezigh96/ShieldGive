@@ -1,5 +1,3 @@
-import { mockStore } from "./mockStore";
-
 const BASE = (import.meta.env.VITE_API_URL || "/api").replace(/\/$/, "");
 
 export interface Campaign {
@@ -27,39 +25,20 @@ export interface AgentStatus {
 let lastBackendConnected = false;
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  try {
-    const res = await fetch(`${BASE}${path}`, {
-      headers: { "Content-Type": "application/json", ...options?.headers }, ...options,
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-    if (!json.success) throw new Error(json.error?.message || json.error || "Request failed");
-    lastBackendConnected = true;
-    return json.data as T;
-  } catch {
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { "Content-Type": "application/json", ...options?.headers }, ...options,
+  });
+  if (!res.ok) {
     lastBackendConnected = false;
-    return mockFallback<T>(path, options);
+    throw new Error(`Backend unavailable: HTTP ${res.status}`);
   }
-}
-
-async function mockFallback<T>(path: string, options?: RequestInit): Promise<T> {
-  const method = (options?.method || "GET").toUpperCase();
-  let body: Record<string, unknown> = {};
-  if (options?.body && typeof options.body === "string") {
-    try { body = JSON.parse(options.body); } catch { /* ignore */ }
+  const json = await res.json();
+  if (!json.success) {
+    lastBackendConnected = false;
+    throw new Error(json.error?.message || json.error || "Backend request failed");
   }
-  if (path === "/campaign" && method === "GET") return mockStore.getCampaign() as T;
-  if (path === "/register" && method === "POST") return mockStore.registerDonor(String(body.solanaWallet || ""), body.note ? String(body.note) : undefined) as T;
-  if (path === "/donors" && method === "GET") return mockStore.getDonors() as T;
-  if (path === "/donations" && method === "GET") return mockStore.getDonations() as T;
-  if (path.startsWith("/agent/logs") && method === "GET") return mockStore.getAgentLogs(parseInt(path.split("limit=")[1] || "40", 10)) as T;
-  if (path === "/agent/status" && method === "GET") {
-    return { ...mockStore.getAgentStatus(), backendConnected: false, mode: "DEMO_LOCAL" } as T;
-  }
-  if (path === "/agent/simulate" && method === "POST") {
-    return (await mockStore.simulateDonation(Number(body.amountZEC) || 0.25, body.memo ? String(body.memo) : undefined)) as T;
-  }
-  throw new Error(`Mock: unsupported path ${method} ${path}`);
+  lastBackendConnected = true;
+  return json.data as T;
 }
 
 export const api = {
@@ -71,8 +50,9 @@ export const api = {
   getDonations: () => request<DetectedDonation[]>("/donations"),
   getAgentLogs: (limit = 40) => request<AgentLogEntry[]>(`/agent/logs?limit=${limit}`),
   getAgentStatus: () => request<AgentStatus>("/agent/status").then((status) => ({
-    ...status, backendConnected: lastBackendConnected,
-    mode: lastBackendConnected ? "LIVE_BACKEND" : "DEMO_LOCAL",
+    ...status,
+    backendConnected: lastBackendConnected,
+    mode: "LIVE_BACKEND" as const,
   })),
   simulateDonation: (amountZEC: number, memo?: string) => request<{ txId: string; amountZEC: number; message: string }>(
     "/agent/simulate", { method: "POST", body: JSON.stringify({ amountZEC, memo }) }
