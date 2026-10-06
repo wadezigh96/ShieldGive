@@ -44,6 +44,24 @@ router.get("/donations", (_req, res) => {
   res.json({ success: true, data: storage.getDonations() });
 });
 
+router.get("/cross-l1/receipts", (_req, res) => {
+  const receipts = storage
+    .getDonations()
+    .filter((donation) => donation.crossL1Receipt)
+    .map((donation) => donation.crossL1Receipt);
+
+  res.json({
+    success: true,
+    data: {
+      model: "proof-only",
+      fundsMovedAcrossChains: false,
+      sourceChain: "zcash",
+      destinationChain: "solana",
+      receipts,
+    },
+  });
+});
+
 router.get("/agent/logs", (req, res) => {
   const limit = Math.min(100, parseInt(String(req.query.limit || "40"), 10));
   res.json({ success: true, data: storage.getAgentLogs(limit) });
@@ -60,6 +78,13 @@ router.get("/agent/status", (_req, res) => {
       pollIntervalSeconds: parseInt(process.env.POLL_INTERVAL_SECONDS || "30", 10),
       totalDonations: storage.getDonations().length,
       registeredDonors: storage.getDonors().length,
+      crossL1: {
+        enabled: true,
+        model: "proof-only",
+        sourceChain: "zcash",
+        destinationChain: "solana",
+        fundsMovedAcrossChains: false,
+      },
     },
   });
 });
