@@ -1,6 +1,7 @@
 import { storage } from "../services/storage.js";
 import { zcashWatcher, type IncomingShieldedTx } from "../services/zcashWatcher.js";
 import { solanaMinter } from "../services/solanaMinter.js";
+import { createCrossL1Receipt } from "../services/crossL1Receipt.js";
 
 /**
  * Core agent pipeline — deterministic, no LLM reasoning.
@@ -10,12 +11,11 @@ import { solanaMinter } from "../services/solanaMinter.js";
  *   2. Skip transactions that already completed successfully
  *   3. Correlate the payment to a registered donor using the private memo code
  *   4. Validate basic constraints
- *   5. Mint NFT proof
- *   6. Update campaign totals + agent log
+ *   5. Create a cross-L1 receipt binding the Zcash event to the donor's Solana wallet
+ *   6. Mint NFT proof using the existing Solana integration
+ *   7. Update campaign totals + agent log
  *
- * A transaction is marked processed only after successful minting. This keeps
- * failed mint attempts retryable across polling cycles while the MVP uses its
- * in-memory store.
+ * The cross-L1 receipt is proof metadata only. It never moves funds between chains.
  */
 function donorIdFromMemo(memo?: string): string | undefined {
   if (!memo) return undefined;
@@ -76,7 +76,25 @@ export async function processIncomingTx(tx: IncomingShieldedTx): Promise<void> {
     return;
   }
 
-  storage.updateDonation(donation.id, { status: "validated" });
+  const crossL1Receipt = createCrossL1Receipt({
+    sourceTxId: tx.txId,
+    donationId: donation.id,
+    amountZEC: tx.amountZEC,
+    solanaWallet: donor.solanaWallet,
+    createdAt: donation.detectedAt,
+  });
+
+  storage.updateDonation(donation.id, {
+    status: "validated",
+    crossL1Receipt,
+  });
+  storage.addAgentLog("success", "Cross-L1 donation receipt created", {
+    receiptId: crossL1Receipt.receiptId,
+    sourceChain: crossL1Receipt.sourceChain,
+    destinationChain: crossL1Receipt.destinationChain,
+    sourceTxId: tx.txId,
+    donationId: donation.id,
+  });
   storage.addAgentLog("success", "Payment validated", {
     donationId: donation.id,
     solanaWallet: donor.solanaWallet,
@@ -92,17 +110,25 @@ export async function processIncomingTx(tx: IncomingShieldedTx): Promise<void> {
     });
 
     if (mintResult.success) {
+      const completedReceipt = {
+        ...crossL1Receipt,
+        status: "solana_proof_minted" as const,
+        solanaMintAddress: mintResult.mintAddress,
+      };
+
       storage.updateDonation(donation.id, {
         status: "minted",
         nftMintAddress: mintResult.mintAddress,
+        crossL1Receipt: completedReceipt,
       });
       storage.recordRaised(tx.amountZEC);
       storage.markTxProcessed(tx.txId);
       storage.addAgentLog(
         "success",
-        "Donation proof NFT minted & campaign updated",
+        "Donation proof NFT minted & cross-L1 receipt completed",
         {
           donationId: donation.id,
+          receiptId: completedReceipt.receiptId,
           mintAddress: mintResult.mintAddress,
           totalRaisedZEC: storage.getCampaign().totalRaisedZEC,
         }
@@ -112,22 +138,32 @@ export async function processIncomingTx(tx: IncomingShieldedTx): Promise<void> {
 
     storage.updateDonation(donation.id, {
       status: "failed",
+      crossL1Receipt: {
+        ...crossL1Receipt,
+        status: "failed",
+      },
       error: mintResult.error || "Mint failed — will retry",
     });
     storage.addAgentLog("warn", "NFT mint failed — transaction remains retryable", {
       txId: tx.txId,
       donationId: donation.id,
+      receiptId: crossL1Receipt.receiptId,
       error: mintResult.error,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     storage.updateDonation(donation.id, {
       status: "failed",
+      crossL1Receipt: {
+        ...crossL1Receipt,
+        status: "failed",
+      },
       error: `${message} — will retry`,
     });
     storage.addAgentLog("warn", "NFT mint threw an error — transaction remains retryable", {
       txId: tx.txId,
       donationId: donation.id,
+      receiptId: crossL1Receipt.receiptId,
       error: message,
     });
   }
