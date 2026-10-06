@@ -81,7 +81,7 @@ export class SolanaMinter {
         tokenOwner: publicKey(recipientWallet),
       }).sendAndConfirm(umi);
 
-      const signature = result.signature;
+      const signature = bs58.encode(result.signature);
       const mintAddress = mint.publicKey.toString();
 
       storage.addAgentLog("success", "NFT minted on Solana", {
