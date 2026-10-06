@@ -15,6 +15,19 @@ export interface DonorRegistration {
   note?: string;
 }
 
+export interface CrossL1DonationReceipt {
+  receiptId: string;
+  sourceChain: "zcash";
+  destinationChain: "solana";
+  sourceTxId: string;
+  donationId: string;
+  amountZEC: number;
+  solanaWallet: string;
+  status: "source_verified" | "solana_proof_minted" | "failed";
+  createdAt: string;
+  solanaMintAddress?: string;
+}
+
 export interface DetectedDonation {
   id: string;
   txId: string; // Zcash txid (or mock id)
@@ -23,6 +36,7 @@ export interface DetectedDonation {
   status: "pending" | "validated" | "minted" | "failed";
   solanaWallet?: string;
   nftMintAddress?: string;
+  crossL1Receipt?: CrossL1DonationReceipt;
   error?: string;
 }
 
