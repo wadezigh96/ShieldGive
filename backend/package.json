@@ -11,7 +11,8 @@
     "test:mock-e2e": "tsx test/mock-e2e.ts",
     "test:zcash-readonly": "tsx test/zcash-readonly.ts",
     "test:zcash-mock-rpc": "tsx test/zcash-mock-rpc-e2e.ts",
-    "test:solana-devnet-preflight": "tsx test/solana-devnet-preflight.ts"
+    "test:solana-devnet-preflight": "tsx test/solana-devnet-preflight.ts",
+    "test:zcash-to-solana-devnet-e2e": "tsx test/zcash-to-solana-devnet-e2e.ts"
   },
   "keywords": [
     "zcash",
