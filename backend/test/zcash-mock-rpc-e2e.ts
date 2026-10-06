@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 
+(async () => {
+
 const campaignAddress = "zs1shieldgive-regtest-campaign";
 const donorWallet = "So11111111111111111111111111111111111111112";
 const txId = "regtest-mock-rpc-zcash-tx-001";
@@ -84,3 +86,8 @@ try {
 } finally {
   await new Promise<void>((resolve, reject) => rpcServer.close((err) => err ? reject(err) : resolve()));
 }
+
+})().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
