@@ -6,10 +6,6 @@ import type {
   AgentLogEntry,
 } from "../types/index.js";
 
-/**
- * Simple in-memory store for the MVP demo.
- * Replace with a real database (Postgres / SQLite) for production.
- */
 class Storage {
   private campaign: Campaign;
   private donors: Map<string, DonorRegistration> = new Map();
@@ -38,24 +34,21 @@ class Storage {
 
   registerDonor(solanaWallet: string, note?: string): DonorRegistration {
     const normalized = solanaWallet.trim();
-    if (!normalized) {
-      throw new Error("Solana wallet address is required");
-    }
+    if (!normalized) throw new Error("Solana wallet address is required");
 
-    // Simple uniqueness by wallet
     for (const existing of this.donors.values()) {
-      if (existing.solanaWallet === normalized) {
-        return existing;
-      }
+      if (existing.solanaWallet === normalized) return existing;
     }
 
+    const id = uuidv4();
     const registration: DonorRegistration = {
-      id: uuidv4(),
+      id,
       solanaWallet: normalized,
       registeredAt: new Date().toISOString(),
       note,
+      paymentMemo: `ShieldGive donor=${id}`,
     };
-    this.donors.set(registration.id, registration);
+    this.donors.set(id, registration);
     return registration;
   }
 
@@ -65,18 +58,14 @@ class Storage {
 
   findDonorByWallet(wallet: string): DonorRegistration | undefined {
     const normalized = wallet.trim();
-    return Array.from(this.donors.values()).find(
-      (d) => d.solanaWallet === normalized
-    );
+    return Array.from(this.donors.values()).find((d) => d.solanaWallet === normalized);
   }
 
-  /** Returns the most recent registered donor (demo heuristic). */
   getLatestDonor(): DonorRegistration | undefined {
     const all = this.getDonors();
     if (all.length === 0) return undefined;
     return all.sort(
-      (a, b) =>
-        new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime()
+      (a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime()
     )[0];
   }
 
@@ -89,18 +78,12 @@ class Storage {
   }
 
   addDonation(donation: Omit<DetectedDonation, "id">): DetectedDonation {
-    const full: DetectedDonation = {
-      id: uuidv4(),
-      ...donation,
-    };
+    const full: DetectedDonation = { id: uuidv4(), ...donation };
     this.donations.set(full.id, full);
     return full;
   }
 
-  updateDonation(
-    id: string,
-    patch: Partial<DetectedDonation>
-  ): DetectedDonation | null {
+  updateDonation(id: string, patch: Partial<DetectedDonation>): DetectedDonation | null {
     const existing = this.donations.get(id);
     if (!existing) return null;
     const updated = { ...existing, ...patch };
@@ -110,8 +93,7 @@ class Storage {
 
   getDonations(): DetectedDonation[] {
     return Array.from(this.donations.values()).sort(
-      (a, b) =>
-        new Date(b.detectedAt).getTime() - new Date(a.detectedAt).getTime()
+      (a, b) => new Date(b.detectedAt).getTime() - new Date(a.detectedAt).getTime()
     );
   }
 
@@ -134,10 +116,7 @@ class Storage {
       meta,
     };
     this.agentLogs.unshift(entry);
-    // Keep last 200 entries for demo
-    if (this.agentLogs.length > 200) {
-      this.agentLogs = this.agentLogs.slice(0, 200);
-    }
+    if (this.agentLogs.length > 200) this.agentLogs = this.agentLogs.slice(0, 200);
     return entry;
   }
 
