@@ -13,6 +13,7 @@ export interface DonorRegistration {
   solanaWallet: string;
   registeredAt: string;
   note?: string;
+  paymentMemo: string;
 }
 
 export interface CrossL1DonationReceipt {
@@ -30,7 +31,7 @@ export interface CrossL1DonationReceipt {
 
 export interface DetectedDonation {
   id: string;
-  txId: string; // Zcash txid (or mock id)
+  txId: string;
   amountZEC: number;
   detectedAt: string;
   status: "pending" | "validated" | "minted" | "failed";
