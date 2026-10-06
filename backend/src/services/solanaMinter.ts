@@ -27,6 +27,10 @@ export class SolanaMinter {
 
   isMockMode(): boolean { return this.mockMode; }
 
+  isLiveMintEnabled(): boolean {
+    return !this.mockMode && process.env.SOLANA_LIVE_MINT_ENABLED === "true";
+  }
+
   async mintDonationProof(params: {
     recipientWallet: string;
     amountZEC: number;
@@ -45,6 +49,12 @@ export class SolanaMinter {
         mintAddress: mockMint, signature: mockSig, recipientWallet,
       });
       return { success: true, mintAddress: mockMint, signature: mockSig };
+    }
+
+    if (process.env.SOLANA_LIVE_MINT_ENABLED !== "true") {
+      const error = "Live Solana minting is disabled; set SOLANA_LIVE_MINT_ENABLED=true explicitly";
+      storage.addAgentLog("warn", "Live Solana mint blocked by feature flag", { recipientWallet, txId });
+      return { success: false, error };
     }
 
     try {
