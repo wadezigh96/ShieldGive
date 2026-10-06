@@ -11,6 +11,7 @@ export default function CampaignPage() {
   const [registering, setRegistering] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [paymentMemo, setPaymentMemo] = useState("");
 
   const privySolanaWallet = useMemo(() => {
     const accounts = user?.linkedAccounts ?? [];
@@ -38,8 +39,9 @@ export default function CampaignPage() {
     setRegistering(true);
     setMessage(null);
     try {
-      await api.register(wallet.trim(), note.trim() || undefined);
-      setMessage({ type: "success", text: "Wallet registered. Your contribution can now be associated with a Solana proof when live minting is enabled." });
+      const registration = await api.register(wallet.trim(), note.trim() || undefined);
+      setPaymentMemo(registration.paymentMemo);
+      setMessage({ type: "success", text: "Wallet registered. Use the payment memo below when sending ZEC so the private donation can be matched to this Solana proof wallet." });
       setNote("");
     } catch (err) {
       setMessage({ type: "error", text: err instanceof Error ? err.message : "Registration failed" });
@@ -108,6 +110,15 @@ export default function CampaignPage() {
           <button type="submit" disabled={registering || !wallet} className="btn-primary w-full sm:w-auto">
             {registering ? "Registering…" : "Register wallet for proof"}
           </button>
+          {paymentMemo && (
+            <div className="rounded-xl bg-slate-950 border border-shield-500/30 p-4">
+              <p className="text-xs text-slate-500 mb-1">Zcash payment memo</p>
+              <code className="break-all text-sm font-mono text-zcash-gold">{paymentMemo}</code>
+              <p className="mt-2 text-xs text-slate-500">
+                Include this exact memo in your shielded Zcash donation. It is used only for donor correlation.
+              </p>
+            </div>
+          )}
         </form>
       </section>
 
@@ -115,9 +126,11 @@ export default function CampaignPage() {
         <h2 className="text-lg font-semibold text-white mb-4">How ShieldGive works</h2>
         <ol className="space-y-3 text-sm text-slate-300">
           <li>1. Connect or create a Solana wallet with Privy.</li>
-          <li>2. Send a shielded Zcash contribution to the campaign address.</li>
-          <li>3. ShieldGive detects and validates the contribution through its processing workflow.</li>
-          <li>4. A contribution proof can be minted to your registered Solana wallet when live Solana minting is enabled.</li>
+          <li>2. Copy your private donor memo and include it with the shielded Zcash contribution.</li>
+          <li>3. Send the contribution to the campaign shielded address.</li>
+          <li>4. ShieldGive detects the Zcash payment and correlates it to your registered Solana proof wallet.</li>
+          <li>5. A cross-L1 receipt is created, then the existing Solana proof minting flow can issue the contribution proof.</li>
+          
         </ol>
       </section>
     </div>
