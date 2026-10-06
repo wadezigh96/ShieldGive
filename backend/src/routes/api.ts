@@ -3,6 +3,7 @@ import { z } from "zod";
 import { storage } from "../services/storage.js";
 import { zcashWatcher } from "../services/zcashWatcher.js";
 import { processIncomingTx } from "../agent/pipeline.js";
+import { solanaMinter } from "../services/solanaMinter.js";
 
 const router = Router();
 
@@ -75,6 +76,7 @@ router.get("/agent/status", (_req, res) => {
       mockSolana:
         process.env.SOLANA_PRIVATE_KEY === "mock" ||
         !process.env.SOLANA_PRIVATE_KEY,
+      liveSolanaMintEnabled: solanaMinter.isLiveMintEnabled(),
       pollIntervalSeconds: parseInt(process.env.POLL_INTERVAL_SECONDS || "30", 10),
       totalDonations: storage.getDonations().length,
       registeredDonors: storage.getDonors().length,
@@ -96,6 +98,13 @@ const simulateSchema = z.object({
 
 router.post("/agent/simulate", async (req, res) => {
   try {
+    if (!zcashWatcher.isMockMode() || !solanaMinter.isMockMode()) {
+      res.status(403).json({
+        success: false,
+        error: "Simulation endpoint is disabled while a live chain integration is active",
+      });
+      return;
+    }
     const body = simulateSchema.parse(req.body);
     const tx = await zcashWatcher.simulateIncomingDonation(body.amountZEC, {
       memo: body.memo,
