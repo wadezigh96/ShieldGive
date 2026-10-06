@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import { api, type Campaign } from "../lib/api";
+import { api, type Campaign, type DetectedDonation } from "../lib/api";
 
 export default function CampaignPage() {
   const { authenticated, login, logout, user } = usePrivy();
@@ -12,6 +12,8 @@ export default function CampaignPage() {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [paymentMemo, setPaymentMemo] = useState("");
+  const [latestDonation, setLatestDonation] = useState<DetectedDonation | null>(null);
+  const [memoCopied, setMemoCopied] = useState(false);
 
   const privySolanaWallet = useMemo(() => {
     const accounts = user?.linkedAccounts ?? [];
@@ -28,6 +30,38 @@ export default function CampaignPage() {
       .catch((e) => setMessage({ type: "error", text: e.message }))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!wallet) {
+      setLatestDonation(null);
+      return;
+    }
+
+    let active = true;
+    const refresh = async () => {
+      try {
+        const donations = await api.getDonations();
+        if (!active) return;
+        const mine = donations
+          .filter((donation) => donation.solanaWallet === wallet)
+          .sort((a, b) => new Date(b.detectedAt).getTime() - new Date(a.detectedAt).getTime())[0];
+        setLatestDonation(mine ?? null);
+        if (mine?.status === "minted") {
+          const updatedCampaign = await api.getCampaign();
+          if (active) setCampaign(updatedCampaign);
+        }
+      } catch {
+        // Keep the last known status; the next poll will retry.
+      }
+    };
+
+    refresh();
+    const timer = window.setInterval(refresh, 4000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [wallet]);
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
@@ -53,6 +87,58 @@ export default function CampaignPage() {
     navigator.clipboard.writeText(campaign.shieldedAddress);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  function copyMemo() {
+    if (!paymentMemo) return;
+    navigator.clipboard.writeText(paymentMemo);
+    setMemoCopied(true);
+    setTimeout(() => setMemoCopied(false), 2000);
+  }
+
+  function donationStatus() {
+    if (!latestDonation) {
+      return {
+        title: "Waiting for Zcash donation",
+        detail: "After you send ZEC with your donor memo, ShieldGive will poll for the donation.",
+        tone: "text-slate-300",
+      };
+    }
+    if (latestDonation.status === "pending") {
+      return {
+        title: "Zcash detected",
+        detail: "The agent has detected the donation and is validating it.",
+        tone: "text-zcash-gold",
+      };
+    }
+    if (latestDonation.status === "validated" && latestDonation.crossL1Receipt?.status === "source_verified") {
+      return {
+        title: "Cross-L1 verified",
+        detail: "The Zcash source payment is verified. The Solana proof mint is next.",
+        tone: "text-shield-300",
+      };
+    }
+    if (latestDonation.status === "minted" && latestDonation.crossL1Receipt?.status === "solana_proof_minted") {
+      return {
+        title: "Solana proof minted",
+        detail: latestDonation.nftMintAddress
+          ? `Your proof NFT is recorded on Solana: ${latestDonation.nftMintAddress}`
+          : "Your contribution proof has been minted on Solana.",
+        tone: "text-shield-300",
+      };
+    }
+    if (latestDonation.status === "failed") {
+      return {
+        title: "Processing needs attention",
+        detail: latestDonation.error || "The donation could not be completed yet. The agent can retry after the issue is resolved.",
+        tone: "text-red-300",
+      };
+    }
+    return {
+      title: "Processing donation",
+      detail: "ShieldGive is moving the donation through validation and proof creation.",
+      tone: "text-slate-300",
+    };
   }
 
   if (loading) return <div className="mx-auto max-w-3xl px-4 py-20 text-center text-slate-400">Loading campaign…</div>;
@@ -113,12 +199,40 @@ export default function CampaignPage() {
           {paymentMemo && (
             <div className="rounded-xl bg-slate-950 border border-shield-500/30 p-4">
               <p className="text-xs text-slate-500 mb-1">Zcash payment memo</p>
-              <code className="break-all text-sm font-mono text-zcash-gold">{paymentMemo}</code>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 break-all text-sm font-mono text-zcash-gold">{paymentMemo}</code>
+                <button type="button" onClick={copyMemo} className="btn-secondary shrink-0 text-xs py-1.5 px-3">
+                  {memoCopied ? "Copied" : "Copy"}
+                </button>
+              </div>
               <p className="mt-2 text-xs text-slate-500">
-                Include this exact memo in your shielded Zcash donation. It is used only for donor correlation.
+                Include this exact memo in your shielded Zcash donation. It is a correlation identifier, not a secret.
               </p>
             </div>
           )}
+
+          <div className="rounded-xl bg-slate-950 border border-slate-700 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs text-slate-500">Live donation status</p>
+                <p className={`mt-1 font-semibold ${donationStatus().tone}`}>{donationStatus().title}</p>
+              </div>
+              <span className="text-xs text-slate-500">updates every 4s</span>
+            </div>
+            <p className="mt-2 text-sm text-slate-400">{donationStatus().detail}</p>
+            {latestDonation && (
+              <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="text-slate-500">Amount</span>
+                  <p className="mt-1 font-mono text-slate-200">{latestDonation.amountZEC.toFixed(4)} ZEC</p>
+                </div>
+                <div>
+                  <span className="text-slate-500">Zcash tx</span>
+                  <p className="mt-1 truncate font-mono text-slate-200">{latestDonation.txId}</p>
+                </div>
+              </div>
+            )}
+          </div>
         </form>
       </section>
 
@@ -130,7 +244,7 @@ export default function CampaignPage() {
           <li>3. Send the contribution to the campaign shielded address.</li>
           <li>4. ShieldGive detects the Zcash payment and correlates it to your registered Solana proof wallet.</li>
           <li>5. A cross-L1 receipt is created, then the existing Solana proof minting flow can issue the contribution proof.</li>
-          
+          <li>6. No funds are bridged to Solana in this experiment; the Solana asset is the public contribution proof.</li>
         </ol>
       </section>
     </div>
