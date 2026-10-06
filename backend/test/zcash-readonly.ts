@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { ZcashWatcher } from "../src/services/zcashWatcher.js";
 
+(async () => {
+
 for (const key of ["ZCASH_RPC_URL", "CAMPAIGN_SHIELDED_ADDRESS", "ZCASH_TEST_TXID"]) {
   if (!process.env[key]) {
     throw new Error(`${key} is required for the read-only Zcash smoke test`);
@@ -28,3 +30,8 @@ console.log(JSON.stringify({
   confirmations: "satisfied by watcher min-confirmation policy",
   memoMatched: expectedMemo ? target.memo === expectedMemo : null,
 }, null, 2));
+
+})().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
