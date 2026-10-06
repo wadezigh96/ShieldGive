@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { ZcashWatcher } from "../src/services/zcashWatcher.js";
 
 (async () => {
 
@@ -10,6 +9,7 @@ for (const key of ["ZCASH_RPC_URL", "CAMPAIGN_SHIELDED_ADDRESS", "ZCASH_TEST_TXI
 }
 
 const expectedMemo = process.env.ZCASH_TEST_MEMO;
+const { ZcashWatcher } = await import("../src/services/zcashWatcher.js");
 const watcher = new ZcashWatcher();
 assert.equal(watcher.isMockMode(), false, "Zcash watcher must be in live mode");
 
