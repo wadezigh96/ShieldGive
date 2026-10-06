@@ -202,3 +202,30 @@ MIT
 ---
 
 Built with ❤️ for privacy-preserving public goods funding.
+
+
+## Solana Devnet Test
+
+ShieldGive keeps live Solana minting disabled by default. For the first real-chain experiment, use **Solana Devnet**, not Mainnet.
+
+Required environment:
+
+```env
+SOLANA_NETWORK=devnet
+SOLANA_RPC_URL=https://api.devnet.solana.com
+SOLANA_PRIVATE_KEY=<devnet-only-mint-authority>
+SOLANA_TEST_RECIPIENT=<Solana-recipient>
+SOLANA_NFT_METADATA_URI=https://<your-https-metadata-uri>
+```
+
+Run the no-broadcast preflight:
+
+```bash
+cd backend
+npm install
+npm run test:solana-devnet-preflight
+```
+
+The preflight checks the Devnet RPC, mint-authority key format, recipient address, metadata URI, and authority balance. It **does not create an NFT or broadcast a transaction**.
+
+Devnet SOL is test-only and can be obtained from a Solana faucet. Public Devnet RPC is intended for development/testing and is rate-limited.
