@@ -4,9 +4,6 @@ import { createServer } from "node:http";
 const campaignAddress = "zs1shieldgive-regtest-campaign";
 const donorWallet = "So11111111111111111111111111111111111111112";
 const txId = "regtest-mock-rpc-zcash-tx-001";
-const memo = "ShieldGive donor=regtest-donor-001";
-const memoHex = Buffer.from(memo, "utf8").toString("hex");
-
 process.env.ZCASH_MODE = "live";
 process.env.ZCASH_RPC_USER = "test";
 process.env.ZCASH_RPC_PASSWORD = "test";
@@ -14,6 +11,11 @@ process.env.CAMPAIGN_SHIELDED_ADDRESS = campaignAddress;
 process.env.ZCASH_MIN_CONFIRMATIONS = "1";
 process.env.SOLANA_MODE = "mock";
 process.env.SOLANA_PRIVATE_KEY = "mock";
+
+const { storage } = await import("../src/services/storage.js");
+const donor = storage.registerDonor(donorWallet, "mock RPC donor");
+const memo = donor.paymentMemo;
+const memoHex = Buffer.from(memo, "utf8").toString("hex");
 
 const rpcServer = createServer((req, res) => {
   let body = "";
@@ -49,12 +51,10 @@ assert.ok(address && typeof address === "object");
 process.env.ZCASH_RPC_URL = `http://127.0.0.1:${address.port}`;
 
 try {
-  const { storage } = await import("../src/services/storage.js");
   const { zcashWatcher } = await import("../src/services/zcashWatcher.js");
   const { processIncomingTx } = await import("../src/agent/pipeline.js");
 
-  const donor = storage.registerDonor(donorWallet, "mock RPC donor");
-  assert.equal(donor.id, "regtest-donor-001", "fixture memo must map to a deterministic donor id");
+  assert.equal(donor.paymentMemo, memo);
 
   const received = await zcashWatcher.pollIncoming();
   assert.equal(received.length, 1);
