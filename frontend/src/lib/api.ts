@@ -5,7 +5,7 @@ export interface Campaign {
   createdAt: string; totalRaisedZEC: number; donationCount: number;
 }
 export interface DonorRegistration {
-  id: string; solanaWallet: string; registeredAt: string; note?: string;
+  id: string; solanaWallet: string; registeredAt: string; note?: string; paymentMemo: string;
 }
 export interface DetectedDonation {
   id: string; txId: string; amountZEC: number; detectedAt: string;
