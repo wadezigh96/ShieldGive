@@ -41,13 +41,22 @@ export async function processIncomingTx(tx: IncomingShieldedTx): Promise<void> {
     ? storage.getDonors().find((d) => d.id === donorId)
     : undefined;
 
-  const donation = storage.addDonation({
+  const existingDonation = storage.findDonationByTxId(tx.txId);
+  const donation = existingDonation ?? storage.addDonation({
     txId: tx.txId,
     amountZEC: tx.amountZEC,
     detectedAt: tx.receivedAt || new Date().toISOString(),
     status: "pending",
     solanaWallet: donor?.solanaWallet,
   });
+
+  if (existingDonation) {
+    storage.addAgentLog("info", "Retrying existing donation record", {
+      txId: tx.txId,
+      donationId: donation.id,
+      status: donation.status,
+    });
+  }
 
   if (!donor) {
     storage.updateDonation(donation.id, {
