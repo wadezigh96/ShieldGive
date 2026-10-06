@@ -83,6 +83,10 @@ class Storage {
     return full;
   }
 
+  findDonationByTxId(txId: string): DetectedDonation | undefined {
+    return Array.from(this.donations.values()).find((donation) => donation.txId === txId);
+  }
+
   updateDonation(id: string, patch: Partial<DetectedDonation>): DetectedDonation | null {
     const existing = this.donations.get(id);
     if (!existing) return null;
