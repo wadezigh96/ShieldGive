@@ -86,7 +86,16 @@ import { Connection } from "@solana/web3.js";
     await processIncomingTx(received[0]);
 
     const donation = storage.getDonations()[0];
-    assert.equal(donation.status, "minted");
+
+    if (donation.status !== "minted") {
+      console.error("=== E2E MINT FAILURE ===");
+      console.error(JSON.stringify({
+        donation,
+        logs: storage.getAgentLogs(20),
+      }, null, 2));
+    }
+
+    assert.equal(donation.status, "minted", donation.error || "Donation pipeline did not mint");
     assert.equal(donation.solanaWallet, recipientWallet);
     assert.ok(donation.nftMintAddress);
     assert.equal(donation.crossL1Receipt?.status, "solana_proof_minted");
