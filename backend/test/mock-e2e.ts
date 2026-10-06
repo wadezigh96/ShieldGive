@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 
+(async () => {
+
 process.env.SOLANA_MODE = "mock";
 process.env.SOLANA_PRIVATE_KEY = "mock";
 
@@ -58,3 +60,8 @@ console.log(JSON.stringify({
   mintAddress: donation.nftMintAddress,
   totalRaisedZEC: campaign.totalRaisedZEC,
 }, null, 2));
+
+})().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
