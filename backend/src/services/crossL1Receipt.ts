@@ -1,28 +1,15 @@
 import { createHash } from "node:crypto";
+import type {
+  CrossL1DonationReceipt,
+  CrossL1ProofStatus,
+} from "../types/index.js";
 
-export type CrossL1ProofStatus =
-  | "source_verified"
-  | "solana_proof_minted"
-  | "failed";
-
-export interface CrossL1DonationReceipt {
-  receiptId: string;
-  sourceChain: "zcash";
-  destinationChain: "solana";
-  sourceTxId: string;
-  donationId: string;
-  amountZEC: number;
-  solanaWallet: string;
-  status: CrossL1ProofStatus;
-  createdAt: string;
-  solanaMintAddress?: string;
-}
+export type { CrossL1DonationReceipt, CrossL1ProofStatus };
 
 /**
  * Creates a deterministic receipt for the L1+L1 experiment.
  *
- * This is intentionally NOT a bridge and never moves funds between chains.
- * It binds an observed Zcash donation to the existing Solana proof flow.
+ * This is proof metadata only, not a bridge: no funds are moved across chains.
  */
 export function createCrossL1Receipt(params: {
   sourceTxId: string;
@@ -40,7 +27,7 @@ export function createCrossL1Receipt(params: {
         params.donationId,
         params.amountZEC.toFixed(8),
         params.solanaWallet,
-      ].join(":")
+      ].join(":"),
     )
     .digest("hex");
 
@@ -52,7 +39,7 @@ export function createCrossL1Receipt(params: {
     donationId: params.donationId,
     amountZEC: params.amountZEC,
     solanaWallet: params.solanaWallet,
-    status: "source_verified",
+    status: "source_verified" satisfies CrossL1ProofStatus,
     createdAt,
   };
 }
