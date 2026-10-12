@@ -4,18 +4,10 @@ import { solanaMinter } from "../services/solanaMinter.js";
 import { createCrossL1Receipt } from "../services/crossL1Receipt.js";
 
 /**
- * Core agent pipeline — deterministic, no LLM reasoning.
- *
- * Fixed sequence:
- *   1. Poll (or receive) new shielded transactions
- *   2. Skip transactions that already completed successfully
- *   3. Correlate the payment to a registered donor using the private memo code
- *   4. Validate basic constraints
- *   5. Create a cross-L1 receipt binding the Zcash event to the donor's Solana wallet
- *   6. Mint NFT proof using the existing Solana integration
- *   7. Update campaign totals + agent log
- *
- * The cross-L1 receipt is proof metadata only. It never moves funds between chains.
+ * Deterministic donation pipeline. PostgreSQL's unique source-tx constraint
+ * and conditional "validated -> minting" update coordinate competing workers.
+ * A live mint with an ambiguous RPC outcome is quarantined for reconciliation,
+ * never blindly retried.
  */
 function donorIdFromMemo(memo?: string): string | undefined {
   if (!memo) return undefined;
@@ -23,26 +15,33 @@ function donorIdFromMemo(memo?: string): string | undefined {
   return match?.[1];
 }
 
+const terminalOrUncertain = new Set(["minted", "minting", "mint_unknown"]);
+
 async function processIncomingTxInternal(tx: IncomingShieldedTx): Promise<void> {
-  if (storage.isTxProcessed(tx.txId)) {
-    storage.addAgentLog("info", "Skipping successfully processed tx", {
+  if (await storage.isTxProcessed(tx.txId)) {
+    await storage.addAgentLog("info", "Skipping successfully processed tx", { txId: tx.txId });
+    return;
+  }
+
+  const existing = await storage.findDonationByTxId(tx.txId);
+  if (existing && terminalOrUncertain.has(existing.status)) {
+    if (existing.status === "minted") await storage.markTxProcessed(tx.txId);
+    await storage.addAgentLog("warn", "Transaction not reprocessed because its proof is already minted or requires reconciliation", {
       txId: tx.txId,
+      donationId: existing.id,
+      status: existing.status,
     });
     return;
   }
 
-  storage.addAgentLog("info", "New shielded transaction detected", {
+  await storage.addAgentLog("info", "New shielded transaction detected", {
     txId: tx.txId,
     amountZEC: tx.amountZEC,
   });
 
   const donorId = donorIdFromMemo(tx.memo);
-  const donor = donorId
-    ? storage.getDonors().find((d) => d.id === donorId)
-    : undefined;
-
-  const existingDonation = storage.findDonationByTxId(tx.txId);
-  const donation = existingDonation ?? storage.addDonation({
+  const donor = donorId ? await storage.findDonorById(donorId) : undefined;
+  const donation = await storage.getOrCreateDonation({
     txId: tx.txId,
     amountZEC: tx.amountZEC,
     detectedAt: tx.receivedAt || new Date().toISOString(),
@@ -50,35 +49,35 @@ async function processIncomingTxInternal(tx: IncomingShieldedTx): Promise<void> 
     solanaWallet: donor?.solanaWallet,
   });
 
-  if (existingDonation) {
-    storage.addAgentLog("info", "Retrying existing donation record", {
+  // Another worker may have created or advanced the record after the first read.
+  if (terminalOrUncertain.has(donation.status)) {
+    if (donation.status === "minted") await storage.markTxProcessed(tx.txId);
+    await storage.addAgentLog("warn", "Concurrent worker already owns this donation", {
       txId: tx.txId,
       donationId: donation.id,
       status: donation.status,
     });
+    return;
   }
 
   if (!donor) {
-    storage.updateDonation(donation.id, {
+    await storage.updateDonation(donation.id, {
       status: "failed",
       error: donorId
         ? "Donation memo did not match a registered donor"
         : "Donation memo missing ShieldGive donor code",
     });
-    storage.addAgentLog(
+    await storage.addAgentLog(
       "warn",
       "Payment detected but donor correlation failed — NFT not minted",
-      { txId: tx.txId, donationId: donation.id, memo: tx.memo }
+      { txId: tx.txId, donationId: donation.id, memo: tx.memo },
     );
     return;
   }
 
-  if (tx.amountZEC <= 0) {
-    storage.updateDonation(donation.id, {
-      status: "failed",
-      error: "Invalid amount",
-    });
-    storage.addAgentLog("error", "Invalid donation amount", {
+  if (!Number.isFinite(tx.amountZEC) || tx.amountZEC <= 0) {
+    await storage.updateDonation(donation.id, { status: "failed", error: "Invalid amount" });
+    await storage.addAgentLog("error", "Invalid donation amount", {
       txId: tx.txId,
       amountZEC: tx.amountZEC,
     });
@@ -93,18 +92,36 @@ async function processIncomingTxInternal(tx: IncomingShieldedTx): Promise<void> 
     createdAt: donation.detectedAt,
   });
 
-  storage.updateDonation(donation.id, {
-    status: "validated",
+  const prepared = await storage.markDonationValidated(
+    donation.id,
     crossL1Receipt,
-  });
-  storage.addAgentLog("success", "Cross-L1 donation receipt created", {
+    donor.solanaWallet,
+  );
+  if (!prepared) {
+    await storage.addAgentLog("warn", "Donation state changed before validation; refusing duplicate mint", {
+      txId: tx.txId,
+      donationId: donation.id,
+    });
+    return;
+  }
+
+  const claimed = await storage.claimDonationMint(donation.id);
+  if (!claimed) {
+    await storage.addAgentLog("info", "Another worker claimed the mint; duplicate request skipped", {
+      txId: tx.txId,
+      donationId: donation.id,
+    });
+    return;
+  }
+
+  await storage.addAgentLog("success", "Cross-L1 donation receipt created", {
     receiptId: crossL1Receipt.receiptId,
     sourceChain: crossL1Receipt.sourceChain,
     destinationChain: crossL1Receipt.destinationChain,
     sourceTxId: tx.txId,
     donationId: donation.id,
   });
-  storage.addAgentLog("success", "Payment validated", {
+  await storage.addAgentLog("success", "Payment validated", {
     donationId: donation.id,
     solanaWallet: donor.solanaWallet,
     donorId: donor.id,
@@ -118,87 +135,95 @@ async function processIncomingTxInternal(tx: IncomingShieldedTx): Promise<void> 
       txId: tx.txId,
     });
 
-    if (mintResult.success) {
+    if (mintResult.success && mintResult.mintAddress) {
       const completedReceipt = {
         ...crossL1Receipt,
         status: "solana_proof_minted" as const,
         solanaMintAddress: mintResult.mintAddress,
       };
-
-      storage.updateDonation(donation.id, {
+      await storage.updateDonation(donation.id, {
         status: "minted",
         nftMintAddress: mintResult.mintAddress,
+        nftMintSignature: mintResult.signature,
         crossL1Receipt: completedReceipt,
+        error: undefined,
       });
-      storage.recordRaised(tx.amountZEC);
-      storage.markTxProcessed(tx.txId);
-      storage.addAgentLog(
+      await storage.markTxProcessed(tx.txId);
+      const campaign = await storage.getCampaign();
+      await storage.addAgentLog(
         "success",
         "Donation proof NFT minted & cross-L1 receipt completed",
         {
           donationId: donation.id,
           receiptId: completedReceipt.receiptId,
           mintAddress: mintResult.mintAddress,
-          totalRaisedZEC: storage.getCampaign().totalRaisedZEC,
-        }
+          totalRaisedZEC: campaign.totalRaisedZEC,
+        },
       );
       return;
     }
 
-    storage.updateDonation(donation.id, {
-      status: "failed",
+    const uncertain = mintResult.outcomeUnknown === true;
+    await storage.updateDonation(donation.id, {
+      status: uncertain ? "mint_unknown" : "failed",
       crossL1Receipt: {
         ...crossL1Receipt,
-        status: "failed",
+        status: uncertain ? "mint_outcome_unknown" : "failed",
       },
-      error: mintResult.error || "Mint failed — will retry",
+      error: uncertain
+        ? `Mint submission outcome is uncertain: ${mintResult.error || "RPC did not confirm the result"}. Do not retry until the Solana chain is reconciled.`
+        : mintResult.error || "Mint failed before submission; a controlled retry may be possible",
     });
-    storage.addAgentLog("warn", "NFT mint failed — transaction remains retryable", {
-      txId: tx.txId,
-      donationId: donation.id,
-      receiptId: crossL1Receipt.receiptId,
-      error: mintResult.error,
-    });
+    await storage.addAgentLog(uncertain ? "error" : "warn",
+      uncertain
+        ? "Solana mint outcome uncertain — manual on-chain reconciliation required; automatic retry blocked"
+        : "NFT mint failed before a confirmed submission — transaction remains retryable",
+      {
+        txId: tx.txId,
+        donationId: donation.id,
+        receiptId: crossL1Receipt.receiptId,
+        error: mintResult.error,
+        outcomeUnknown: uncertain,
+      },
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    storage.updateDonation(donation.id, {
-      status: "failed",
+    const uncertain = !solanaMinter.isMockMode() && solanaMinter.isLiveMintEnabled();
+    await storage.updateDonation(donation.id, {
+      status: uncertain ? "mint_unknown" : "failed",
       crossL1Receipt: {
         ...crossL1Receipt,
-        status: "failed",
+        status: uncertain ? "mint_outcome_unknown" : "failed",
       },
-      error: `${message} — will retry`,
+      error: uncertain
+        ? `Unexpected mint error with uncertain on-chain outcome: ${message}. Reconcile before retrying.`
+        : message,
     });
-    storage.addAgentLog("warn", "NFT mint threw an error — transaction remains retryable", {
-      txId: tx.txId,
-      donationId: donation.id,
-      receiptId: crossL1Receipt.receiptId,
-      error: message,
-    });
+    await storage.addAgentLog("error",
+      uncertain
+        ? "Unexpected live mint error — automatic retry blocked pending reconciliation"
+        : "NFT mint failed; transaction remains retryable",
+      { txId: tx.txId, donationId: donation.id, receiptId: crossL1Receipt.receiptId, error: message },
+    );
   }
 }
 
-
 const processingTxIds = new Set<string>();
 
-/**
- * Prevent concurrent polling/manual requests from minting the same source
- * transaction more than once within this process.
- */
+/** In-process guard complements the persistent PostgreSQL mint claim. */
 export async function processIncomingTx(tx: IncomingShieldedTx): Promise<void> {
   if (processingTxIds.has(tx.txId)) {
-    storage.addAgentLog("warn", "Skipping duplicate in-flight transaction", {
-      txId: tx.txId,
-    });
+    await storage.addAgentLog("warn", "Skipping duplicate in-flight transaction", { txId: tx.txId });
     return;
   }
 
-  const existing = storage.findDonationByTxId(tx.txId);
-  if (existing?.status === "minted") {
-    storage.markTxProcessed(tx.txId);
-    storage.addAgentLog("info", "Skipping transaction with an existing minted proof", {
+  const existing = await storage.findDonationByTxId(tx.txId);
+  if (existing && terminalOrUncertain.has(existing.status)) {
+    if (existing.status === "minted") await storage.markTxProcessed(tx.txId);
+    await storage.addAgentLog("info", "Skipping existing donation that is minted or awaiting reconciliation", {
       txId: tx.txId,
       donationId: existing.id,
+      status: existing.status,
     });
     return;
   }
@@ -213,30 +238,25 @@ export async function processIncomingTx(tx: IncomingShieldedTx): Promise<void> {
 
 let tickRunning = false;
 
-/** Single agent tick — called by the cron scheduler. */
+/** Single local agent tick. Multiple service instances are safe at the mint claim. */
 export async function agentTick(): Promise<void> {
   if (tickRunning) {
-    storage.addAgentLog("info", "Agent tick skipped — previous tick still running");
+    await storage.addAgentLog("info", "Agent tick skipped — previous tick still running");
     return;
   }
 
   tickRunning = true;
-  storage.addAgentLog("info", "Agent tick — polling for new shielded transactions");
-
+  await storage.addAgentLog("info", "Agent tick — polling for new shielded transactions");
   try {
     const incoming = await zcashWatcher.pollIncoming();
-
     if (incoming.length === 0) {
-      storage.addAgentLog("info", "No new transactions found this cycle");
+      await storage.addAgentLog("info", "No new transactions found this cycle");
       return;
     }
-
-    for (const tx of incoming) {
-      await processIncomingTx(tx);
-    }
+    for (const tx of incoming) await processIncomingTx(tx);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    storage.addAgentLog("error", "Agent tick failed", { error: message });
+    await storage.addAgentLog("error", "Agent tick failed", { error: message });
   } finally {
     tickRunning = false;
   }
