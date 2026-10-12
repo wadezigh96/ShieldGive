@@ -14,7 +14,8 @@
     "test:solana-devnet-preflight": "tsx test/solana-devnet-preflight.ts",
     "test:zcash-to-solana-devnet-e2e": "tsx test/zcash-to-solana-devnet-e2e.ts",
     "test:production-api-safety": "tsx test/production-api-safety.ts",
-    "test:storage-postgres": "tsx test/storage-postgres.ts"
+    "test:storage-postgres": "tsx test/storage-postgres.ts",
+    "reconcile:solana-mint": "tsx scripts/reconcile-solana-mint.ts"
   },
   "keywords": [
     "zcash",
