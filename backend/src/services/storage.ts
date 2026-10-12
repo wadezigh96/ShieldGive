@@ -196,7 +196,13 @@ export class Storage {
 
   async getCampaign(): Promise<Campaign> {
     await this.ready();
-    if (!this.pool) return { ...this.campaign };
+    if (!this.pool) {
+      const minted = Array.from(this.donations.values()).filter((donation) => donation.status === "minted");
+      const totalRaisedZEC = Math.round(
+        minted.reduce((total, donation) => total + donation.amountZEC, 0) * 1e8,
+      ) / 1e8;
+      return { ...this.campaign, totalRaisedZEC, donationCount: minted.length };
+    }
     const result = await this.pool.query(
       `SELECT c.id, c.title, c.description, c.shielded_address, c.created_at,
               COALESCE(SUM(d.amount_zec) FILTER (WHERE d.status = 'minted'), 0) AS total_raised,
