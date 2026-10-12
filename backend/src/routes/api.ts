@@ -36,7 +36,7 @@ function verifySolanaMessage(wallet: string, message: string, signatureBase64: s
 }
 
 function bearerToken(req: Request): string | undefined {
-  const match = req.header("authorization")?.match(/^Bearer\\s+([A-Za-z0-9_-]{30,200})$/);
+  const match = req.header("authorization")?.match(/^Bearer\s+([A-Za-z0-9_-]{30,200})$/);
   return match?.[1];
 }
 
