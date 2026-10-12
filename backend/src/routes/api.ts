@@ -163,10 +163,8 @@ router.post("/register", asyncHandler(async (req, res) => {
 
 router.get("/donors", asyncHandler(async (_req, res) => {
   const donors = await storage.getDonors();
-  // Public production responses must not expose donor wallet addresses or notes.
-  const data = process.env.NODE_ENV === "production"
-    ? donors.map(({ id, registeredAt }) => ({ id, registeredAt }))
-    : donors;
+  // There is no public donor directory. Owner-specific details require a signed session.
+  const data = process.env.NODE_ENV === "production" ? [] : donors;
   res.json({ success: true, data });
 }));
 
