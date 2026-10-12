@@ -1,4 +1,6 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
+import { verify as verifyEd25519 } from "node:crypto";
+import bs58 from "bs58";
 import { z } from "zod";
 import { storage } from "../services/storage.js";
 import { zcashWatcher } from "../services/zcashWatcher.js";
@@ -7,6 +9,42 @@ import { solanaMinter } from "../services/solanaMinter.js";
 
 const router = Router();
 
+function isSolanaWallet(value: string): boolean {
+  try {
+    return bs58.decode(value).length === 32;
+  } catch {
+    return false;
+  }
+}
+
+function verifySolanaMessage(wallet: string, message: string, signatureBase64: string): boolean {
+  try {
+    const publicKeyBytes = bs58.decode(wallet);
+    const signature = Buffer.from(signatureBase64, "base64");
+    if (publicKeyBytes.length !== 32 || signature.length !== 64) return false;
+    // Ed25519 SubjectPublicKeyInfo prefix followed by the raw 32-byte Solana key.
+    const spkiPrefix = Buffer.from("302a300506032b6570032100", "hex");
+    const publicKey = createPublicKey({
+      key: Buffer.concat([spkiPrefix, publicKeyBytes]),
+      format: "der",
+      type: "spki",
+    });
+    return verifyEd25519(null, Buffer.from(message, "utf8"), publicKey, signature);
+  } catch {
+    return false;
+  }
+}
+
+function bearerToken(req: Request): string | undefined {
+  const match = req.header("authorization")?.match(/^Bearer\\s+([A-Za-z0-9_-]{30,200})$/);
+  return match?.[1];
+}
+
+async function authenticatedWallet(req: Request): Promise<string | undefined> {
+  const token = bearerToken(req);
+  return token ? storage.getWalletForSession(token) : undefined;
+}
+
 function asyncHandler(
   handler: (req: Request, res: Response, next: NextFunction) => Promise<void>,
 ) {
@@ -14,6 +52,78 @@ function asyncHandler(
     void handler(req, res, next).catch(next);
   };
 }
+
+router.post("/wallet/challenge", asyncHandler(async (req, res) => {
+  const schema = z.object({ solanaWallet: z.string().min(32).max(44) });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success || !isSolanaWallet(parsed.data?.solanaWallet ?? "")) {
+    res.status(400).json({ success: false, error: "A valid Solana wallet address is required" });
+    return;
+  }
+  const challenge = await storage.createWalletChallenge(parsed.data.solanaWallet);
+  res.status(201).json({
+    success: true,
+    data: {
+      challengeId: challenge.id,
+      solanaWallet: challenge.solanaWallet,
+      message: challenge.message,
+      expiresAt: challenge.expiresAt,
+    },
+  });
+}));
+
+router.post("/wallet/session", asyncHandler(async (req, res) => {
+  const schema = z.object({
+    solanaWallet: z.string().min(32).max(44),
+    challengeId: z.string().uuid(),
+    message: z.string().min(1).max(2048),
+    signature: z.string().min(80).max(100),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success || !isSolanaWallet(parsed.data?.solanaWallet ?? "")) {
+    res.status(400).json({ success: false, error: "Invalid wallet challenge payload" });
+    return;
+  }
+  const body = parsed.data;
+  const challenge = await storage.getWalletChallenge(body.challengeId);
+  if (!challenge ||
+      challenge.solanaWallet !== body.solanaWallet ||
+      challenge.message !== body.message) {
+    res.status(401).json({ success: false, error: "Wallet challenge is invalid, expired, or already used" });
+    return;
+  }
+  if (!verifySolanaMessage(body.solanaWallet, body.message, body.signature)) {
+    res.status(401).json({ success: false, error: "Solana wallet signature is invalid" });
+    return;
+  }
+  const consumed = await storage.consumeWalletChallenge(
+    challenge.id,
+    body.solanaWallet,
+    body.message,
+  );
+  if (!consumed) {
+    res.status(401).json({ success: false, error: "Wallet challenge has already been consumed or expired" });
+    return;
+  }
+  const session = await storage.createWalletSession(body.solanaWallet);
+  res.status(201).json({
+    success: true,
+    data: {
+      solanaWallet: body.solanaWallet,
+      token: session.token,
+      expiresAt: session.expiresAt,
+    },
+  });
+}));
+
+router.get("/donations/mine", asyncHandler(async (req, res) => {
+  const wallet = await authenticatedWallet(req);
+  if (!wallet) {
+    res.status(401).json({ success: false, error: "Verify wallet ownership to access private donation status" });
+    return;
+  }
+  res.json({ success: true, data: await storage.getDonationsByWallet(wallet) });
+}));
 
 router.get("/campaign", asyncHandler(async (_req, res) => {
   res.json({ success: true, data: await storage.getCampaign() });
@@ -27,6 +137,15 @@ const registerSchema = z.object({
 router.post("/register", asyncHandler(async (req, res) => {
   try {
     const body = registerSchema.parse(req.body);
+    const sessionWallet = await authenticatedWallet(req);
+    if (!sessionWallet) {
+      res.status(401).json({ success: false, error: "Verify Solana wallet ownership before registering" });
+      return;
+    }
+    if (sessionWallet !== body.solanaWallet.trim()) {
+      res.status(403).json({ success: false, error: "Verified wallet does not match the registration wallet" });
+      return;
+    }
     const registration = await storage.registerDonor(body.solanaWallet, body.note);
     await storage.addAgentLog("info", "Donor wallet registered", {
       solanaWallet: registration.solanaWallet,
@@ -53,15 +172,16 @@ router.get("/donors", asyncHandler(async (_req, res) => {
 
 router.get("/donations", asyncHandler(async (_req, res) => {
   const donations = await storage.getDonations();
-  // Never publish the private cross-chain linkage fields from the raw store.
+  // Public gallery shows completed proof objects only: never expose pending
+  // donor activity, donation amount/time, wallet, Zcash tx ID, or signature.
   const data = process.env.NODE_ENV === "production"
-    ? donations.map((donation) => ({
-        id: donation.id,
-        amountZEC: donation.amountZEC,
-        detectedAt: donation.detectedAt,
-        status: donation.status,
-        nftMintAddress: donation.nftMintAddress,
-      }))
+    ? donations
+        .filter((donation) => donation.status === "minted" && donation.nftMintAddress)
+        .map((donation) => ({
+          id: donation.id,
+          status: donation.status,
+          nftMintAddress: donation.nftMintAddress,
+        }))
     : donations;
   res.json({ success: true, data });
 }));
@@ -69,18 +189,20 @@ router.get("/donations", asyncHandler(async (_req, res) => {
 router.get("/cross-l1/receipts", asyncHandler(async (_req, res) => {
   const donations = await storage.getDonations();
   const receipts = donations
-    .filter((donation) => donation.crossL1Receipt)
+    .filter((donation) =>
+      donation.crossL1Receipt &&
+      (process.env.NODE_ENV !== "production" || donation.status === "minted"),
+    )
     .map((donation) => donation.crossL1Receipt)
     .filter((receipt) => receipt !== undefined)
     .map((receipt) => {
       if (process.env.NODE_ENV !== "production") return receipt;
-      // Do not publicly correlate a shielded Zcash transaction with a Solana wallet.
+      // The public receipt carries no amount, exact timestamp, transaction ID,
+      // donor wallet, or donation ID. It is only a link to the on-chain proof.
       return {
         receiptId: receipt.receiptId,
         sourceChain: receipt.sourceChain,
         destinationChain: receipt.destinationChain,
-        amountZEC: receipt.amountZEC,
-        createdAt: receipt.createdAt,
         status: receipt.status,
         solanaMintAddress: receipt.solanaMintAddress,
       };
