@@ -300,7 +300,7 @@ export class Storage {
         "SELECT 1 FROM shieldgive_processed_transactions WHERE tx_id = $1",
         [txId],
       );
-      return result.rowCount > 0;
+      return (result.rowCount ?? 0) > 0;
     }
     return this.processedTxIds.has(txId);
   }
@@ -411,7 +411,7 @@ export class Storage {
          RETURNING id`,
         [id, solanaWallet, JSON.stringify(receipt)],
       );
-      if (result.rowCount > 0) return true;
+      if ((result.rowCount ?? 0) > 0) return true;
       const current = await this.pool.query("SELECT status FROM shieldgive_donations WHERE id = $1", [id]);
       return current.rows[0]?.status === "validated";
     }
