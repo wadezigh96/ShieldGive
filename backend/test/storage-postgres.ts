@@ -86,6 +86,7 @@ import { createCrossL1Receipt } from "../src/services/crossL1Receipt.js";
     });
     assert.equal(await first.markDonationValidated(unknown.id, unknownReceipt, wallet), true);
     assert.equal(await second.claimDonationMint(unknown.id), true);
+    await second.updateDonation(unknown.id, { nftMintAddress: "postgres-unknown-mint" });
     await second.updateDonation(unknown.id, {
       status: "mint_unknown",
       error: "test-only uncertain outcome",
@@ -103,8 +104,19 @@ import { createCrossL1Receipt } from "../src/services/crossL1Receipt.js";
     assert.equal(persistedDonation?.status, "minted");
     assert.equal(persistedDonation?.nftMintSignature, "postgres-test-signature");
     assert.equal(persistedUnknown?.status, "mint_unknown");
+    assert.equal(persistedUnknown?.nftMintAddress, "postgres-unknown-mint");
     assert.equal(await afterRestart.isTxProcessed(txId), true);
     assert.equal(await afterRestart.getReconciliationRequiredCount() >= 1, true);
+
+    const reconciled = await afterRestart.completeMintReconciliation(
+      unknown.id,
+      "postgres-unknown-mint",
+      "postgres-verified-signature",
+    );
+    assert.equal(reconciled.status, "minted");
+    assert.equal(reconciled.nftMintSignature, "postgres-verified-signature");
+    assert.equal(await afterRestart.isTxProcessed(unknownTxId), true);
+    assert.equal(await afterRestart.getReconciliationRequiredCount(), 0);
 
     const campaign = await afterRestart.getCampaign();
     assert.equal(campaign.totalRaisedZEC, 0.375);
