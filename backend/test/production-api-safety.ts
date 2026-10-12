@@ -2,8 +2,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 
 (async () => {
-  process.env.NODE_ENV = "production";
-  process.env.SHIELDGIVE_TEST_MODE = "true";
+  process.env.NODE_ENV = "test";
   delete process.env.DATABASE_URL;
   process.env.SOLANA_MODE = "mock";
   process.env.SOLANA_PRIVATE_KEY = "mock";
@@ -17,9 +16,8 @@ import { createServer } from "node:http";
 
   // Explicitly prove production cannot silently fall back to RAM.
   const productionGuard = new Storage();
-  delete process.env.SHIELDGIVE_TEST_MODE;
+  process.env.NODE_ENV = "production";
   await assert.rejects(productionGuard.initialize(), /DATABASE_URL is required in production/);
-  process.env.SHIELDGIVE_TEST_MODE = "true";
 
   const blockedMint = await solanaMinter.mintDonationProof({
     recipientWallet: "So11111111111111111111111111111111111111112",
@@ -29,6 +27,7 @@ import { createServer } from "node:http";
   });
   assert.equal(blockedMint.success, false, "production must not report a mock mint as successful");
   assert.match(blockedMint.error || "", /Production mock minting is blocked/);
+  process.env.NODE_ENV = "test";
 
   const wallet = "So11111111111111111111111111111111111111112";
   const donor = await storage.registerDonor(wallet, "private donor note");
@@ -56,6 +55,7 @@ import { createServer } from "node:http";
     signature: "private-solana-signature",
   });
 
+  process.env.NODE_ENV = "production";
   const app = express();
   app.use(express.json());
   app.use("/api", apiRouter);
