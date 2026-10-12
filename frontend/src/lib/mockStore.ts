@@ -33,11 +33,11 @@ export const mockStore = {
   registerDonor(solanaWallet: string, note?: string): DonorRegistration {
     state = loadState(); const normalized = solanaWallet.trim();
     const existing = state.donors.find((d) => d.solanaWallet === normalized); if (existing) return existing;
-    const reg={ id:uid(), solanaWallet:normalized, registeredAt:new Date().toISOString(), note };
+    const reg={ id:uid(), solanaWallet:normalized, registeredAt:new Date().toISOString(), note, paymentMemo: `ShieldGive donor=${uid()}` };
     state.donors.push(reg); addLog("info","Donor wallet registered",{ solanaWallet:reg.solanaWallet, donorId:reg.id }); saveState(state); return reg;
   },
   getDonors(): DonorRegistration[] { state=loadState(); return [...state.donors]; },
-  getDonations(): DetectedDonation[] { state=loadState(); return [...state.donations].sort((a,b)=>new Date(b.detectedAt).getTime()-new Date(a.detectedAt).getTime()); },
+  getDonations(): DetectedDonation[] { state=loadState(); return [...state.donations].sort((a,b)=>new Date(b.detectedAt || 0).getTime()-new Date(a.detectedAt || 0).getTime()); },
   getAgentLogs(limit=50): AgentLogEntry[] { state=loadState(); return state.logs.slice(0,limit); },
   getAgentStatus(): AgentStatus { state=loadState(); return { mockZcash:true,mockSolana:true,pollIntervalSeconds:30,totalDonations:state.donations.length,registeredDonors:state.donors.length,backendConnected:false,mode:"DEMO_LOCAL" }; },
   async simulateDonation(amountZEC:number, memo?:string):Promise<{txId:string;amountZEC:number;message:string}> {
