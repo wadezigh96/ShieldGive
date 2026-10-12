@@ -63,6 +63,15 @@ import bs58 from "bs58";
       solanaMintAddress: "DevnetMintAddressExample",
     },
   });
+  const otherWallet = bs58.encode(Buffer.alloc(32, 7));
+  await storage.addDonation({
+    txId: "another-private-zcash-tx-id",
+    amountZEC: 9.99,
+    detectedAt: new Date(Date.now() + 1000).toISOString(),
+    status: "minted",
+    solanaWallet: otherWallet,
+    nftMintAddress: "OtherDevnetMintAddress",
+  });
   await storage.addAgentLog("warn", "Private correlation log", {
     solanaWallet: wallet,
     memo: donor.paymentMemo,
@@ -168,6 +177,7 @@ import bs58 from "bs58";
     });
     assert.equal(privateResponse.status, 200);
     const privateJson = await privateResponse.json() as { data: Array<Record<string, unknown>> };
+    assert.equal(privateJson.data.length, 1, "a wallet session cannot read another wallet's donation");
     assert.equal(privateJson.data[0].txId, txId);
     assert.equal(privateJson.data[0].solanaWallet, wallet);
     assert.equal(privateJson.data[0].amountZEC, 0.125);
@@ -178,16 +188,20 @@ import bs58 from "bs58";
 
     const donationsResponse = await fetch(`${base}/donations`);
     const donations = await donationsResponse.json() as { data: Array<Record<string, unknown>> };
-    assert.equal(donations.data[0].id, donation.id);
-    assert.equal(donations.data[0].status, "minted");
-    assert.equal(donations.data[0].nftMintAddress, "DevnetMintAddressExample");
-    assert.equal("txId" in donations.data[0], false);
-    assert.equal("solanaWallet" in donations.data[0], false);
-    assert.equal("amountZEC" in donations.data[0], false);
-    assert.equal("detectedAt" in donations.data[0], false);
-    assert.equal("crossL1Receipt" in donations.data[0], false);
-    assert.equal("nftMintSignature" in donations.data[0], false);
-    assert.equal("error" in donations.data[0], false);
+    assert.equal(donations.data.length, 2, "public gallery includes completed proof objects only");
+    const publicProof = donations.data.find((item) => item.id === donation.id);
+    assert.ok(publicProof);
+    assert.equal(publicProof.status, "minted");
+    assert.equal(publicProof.nftMintAddress, "DevnetMintAddressExample");
+    for (const proof of donations.data) {
+      assert.equal("txId" in proof, false);
+      assert.equal("solanaWallet" in proof, false);
+      assert.equal("amountZEC" in proof, false);
+      assert.equal("detectedAt" in proof, false);
+      assert.equal("crossL1Receipt" in proof, false);
+      assert.equal("nftMintSignature" in proof, false);
+      assert.equal("error" in proof, false);
+    }
 
     const receiptsResponse = await fetch(`${base}/cross-l1/receipts`);
     const receipts = await receiptsResponse.json() as { data: { receipts: Array<Record<string, unknown>> } };
