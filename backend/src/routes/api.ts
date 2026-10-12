@@ -1,5 +1,5 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { verify as verifyEd25519 } from "node:crypto";
+import { createPublicKey, verify as verifyEd25519 } from "node:crypto";
 import bs58 from "bs58";
 import { z } from "zod";
 import { storage } from "../services/storage.js";
