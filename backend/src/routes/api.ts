@@ -38,7 +38,12 @@ router.post("/register", (req, res) => {
 });
 
 router.get("/donors", (_req, res) => {
-  res.json({ success: true, data: storage.getDonors() });
+  // Public production responses must not expose donor wallet addresses or notes.
+  const donors = storage.getDonors();
+  const data = process.env.NODE_ENV === "production"
+    ? donors.map(({ id, registeredAt }) => ({ id, registeredAt }))
+    : donors;
+  res.json({ success: true, data });
 });
 
 router.get("/donations", (_req, res) => {
@@ -64,8 +69,14 @@ router.get("/cross-l1/receipts", (_req, res) => {
 });
 
 router.get("/agent/logs", (req, res) => {
-  const limit = Math.min(100, parseInt(String(req.query.limit || "40"), 10));
-  res.json({ success: true, data: storage.getAgentLogs(limit) });
+  const parsedLimit = parseInt(String(req.query.limit || "40"), 10);
+  const limit = Number.isFinite(parsedLimit) ? Math.max(1, Math.min(100, parsedLimit)) : 40;
+  const logs = storage.getAgentLogs(limit);
+  // Raw metadata can contain wallet addresses, transaction IDs, and private memos.
+  const data = process.env.NODE_ENV === "production"
+    ? logs.map(({ meta: _privateMeta, ...entry }) => entry)
+    : logs;
+  res.json({ success: true, data });
 });
 
 router.get("/agent/status", (_req, res) => {
