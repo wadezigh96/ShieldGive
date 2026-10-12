@@ -81,9 +81,10 @@ function validateProductionConfiguration(): void {
 }
 
 async function main(): Promise<void> {
-  // Durable storage is a hard requirement in production.
-  await storage.initialize();
+  // Validate external-chain configuration before opening database sockets.
+  // Durable storage is also a hard requirement and never falls back to RAM in production.
   validateProductionConfiguration();
+  await storage.initialize();
   await storage.addAgentLog("info", "Backend storage initialized", {
     persistence: await storage.getStorageMode(),
     liveZcash: !zcashWatcher.isMockMode(),
