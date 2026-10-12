@@ -74,7 +74,12 @@ router.get("/agent/logs", (req, res) => {
   const logs = storage.getAgentLogs(limit);
   // Raw metadata can contain wallet addresses, transaction IDs, and private memos.
   const data = process.env.NODE_ENV === "production"
-    ? logs.map(({ meta: _privateMeta, ...entry }) => entry)
+    ? logs.map((entry) => ({
+        id: entry.id,
+        timestamp: entry.timestamp,
+        level: entry.level,
+        message: entry.message,
+      }))
     : logs;
   res.json({ success: true, data });
 });
