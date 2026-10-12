@@ -77,7 +77,7 @@ This keeps complexity low while still demonstrating autonomous execution for the
 | Scheduling         | `node-cron`                         |
 | Zcash              | Viewing key + light client (mocked for public demo) |
 | Solana             | Metaplex / UMI intended for live minting; demo uses local proof records |
-| Database (demo)    | In-memory / JSON file               |
+| Database (development/test) | In-memory store for quick deterministic tests |\n| Database (production) | PostgreSQL with unique source-transaction IDs and atomic mint claims |
 
 ---
 
@@ -161,6 +161,35 @@ npm run dev
 Open http://localhost:5173
 
 ---
+
+## Durable Storage, Idempotency, and Recovery
+
+Production requires a PostgreSQL `DATABASE_URL`. The backend creates its initial tables on startup and **refuses to start in production without the database URL** instead of silently losing registrations and donations in process memory. In-memory storage is only for local development and tests. Keep a long-running Node.js backend for the polling agent; do not rely on a short-lived serverless request to keep a cron worker alive.
+
+The database enforces a unique Zcash source transaction ID for each donation. Before calling the Solana minter, the worker must atomically claim the donation by changing its status from `validated` to `minting`; concurrent backend instances cannot both claim the same record. The NFT mint signature is stored privately alongside the mint address when confirmation succeeds.
+
+A blockchain transaction and a database write cannot be made one atomic transaction. If a live RPC submission may have reached Solana but confirmation is missing, ShieldGive marks the donation `mint_unknown` (or leaves a claimed `minting` record after an abrupt restart) and blocks automatic retry. This intentionally prioritizes avoiding duplicate NFT mints over automatic recovery. Verify the Solana signature / mint account on-chain and reconcile the record before manually retrying. Check `GET /api/agent/status`; `reconciliationRequired` counts donations that need that review.
+
+Production environment:
+- Set `DATABASE_URL` to the PostgreSQL URL from the selected provider and protect it as a secret.
+- Start with `SOLANA_LIVE_MINT_ENABLED=false`. Do not enable live minting until the selected Solana network, metadata URI, recipient, mint authority, and RPC have been verified.
+- Do not treat the public receipt as a bridge or a claim that funds moved between chains; the receipt only binds a source donation observation to a Solana proof.
+- Public production API responses omit donor wallet/note, raw Zcash tx IDs, private receipt linkage, log metadata, and the stored mint signature.
+
+Run checks:
+```bash
+cd backend
+npm install
+npm run typecheck
+npm run test:production-api-safety
+npm run test:mock-e2e
+npm run test:zcash-mock-rpc
+```
+
+The PostgreSQL integration test requires a disposable test database:
+```bash
+DATABASE_URL=postgres://USER:PASSWORD@HOST:5432/TEST_DATABASE npm run test:storage-postgres
+```
 
 ## Demo Flow (≈ 2 minutes)
 
