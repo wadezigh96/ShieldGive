@@ -3,8 +3,11 @@ import { createServer } from "node:http";
 
 (async () => {
   process.env.NODE_ENV = "production";
+  process.env.SHIELDGIVE_TEST_MODE = "true";
+  delete process.env.DATABASE_URL;
   process.env.SOLANA_MODE = "mock";
   process.env.SOLANA_PRIVATE_KEY = "mock";
+  process.env.ZCASH_MODE = "mock";
 
   const express = (await import("express")).default;
   const { storage } = await import("../src/services/storage.js");
@@ -12,15 +15,16 @@ import { createServer } from "node:http";
   const { default: apiRouter } = await import("../src/routes/api.js");
 
   const wallet = "So11111111111111111111111111111111111111112";
-  const donor = storage.registerDonor(wallet, "private donor note");
+  const donor = await storage.registerDonor(wallet, "private donor note");
   const txId = "private-zcash-tx-id";
-  const donation = storage.addDonation({
+  const donation = await storage.addDonation({
     txId,
     amountZEC: 0.125,
     detectedAt: new Date().toISOString(),
     status: "minted",
     solanaWallet: wallet,
     nftMintAddress: "DevnetMintAddressExample",
+    nftMintSignature: "private-solana-signature",
   });
   const receipt = createCrossL1Receipt({
     sourceTxId: txId,
@@ -28,11 +32,12 @@ import { createServer } from "node:http";
     amountZEC: 0.125,
     solanaWallet: wallet,
   });
-  storage.updateDonation(donation.id, { crossL1Receipt: receipt });
-  storage.addAgentLog("warn", "Private correlation log", {
+  await storage.updateDonation(donation.id, { crossL1Receipt: receipt });
+  await storage.addAgentLog("warn", "Private correlation log", {
     solanaWallet: wallet,
     memo: donor.paymentMemo,
     txId,
+    signature: "private-solana-signature",
   });
 
   const app = express();
@@ -65,6 +70,8 @@ import { createServer } from "node:http";
     assert.equal("txId" in donations.data[0], false);
     assert.equal("solanaWallet" in donations.data[0], false);
     assert.equal("crossL1Receipt" in donations.data[0], false);
+    assert.equal("nftMintSignature" in donations.data[0], false);
+    assert.equal("error" in donations.data[0], false);
 
     const receiptsResponse = await fetch(`${base}/cross-l1/receipts`);
     const receipts = await receiptsResponse.json() as { data: { receipts: Array<Record<string, unknown>> } };
@@ -78,12 +85,14 @@ import { createServer } from "node:http";
     assert.equal("meta" in logs.data[0], false);
     assert.equal(JSON.stringify(logs).includes(wallet), false);
     assert.equal(JSON.stringify(logs).includes("private-zcash-tx-id"), false);
+    assert.equal(JSON.stringify(logs).includes("private-solana-signature"), false);
 
     console.log("SHIELDGIVE PRODUCTION API SAFETY: PASS");
   } finally {
     await new Promise<void>((resolve, reject) =>
-      server.close((err) => err ? reject(err) : resolve())
+      server.close((err) => err ? reject(err) : resolve()),
     );
+    await storage.close();
   }
 })().catch((error) => {
   console.error(error);
