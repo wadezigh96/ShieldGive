@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import { generateKeyPairSync, sign as signEd25519 } from "node:crypto";
+import bs58 from "bs58";
 
 (async () => {
   process.env.NODE_ENV = "test";
@@ -32,7 +34,11 @@ import { createServer } from "node:http";
   assert.match(blockedMint.error || "", /Production mock minting is blocked/);
   process.env.NODE_ENV = "test";
 
-  const wallet = "So11111111111111111111111111111111111111112";
+  // Use a real Ed25519 keypair so this test covers the wallet ownership challenge,
+  // one-time challenge consumption, and session-protected private status endpoint.
+  const keypair = generateKeyPairSync("ed25519");
+  const publicKeyDer = keypair.publicKey.export({ type: "spki", format: "der" }) as Buffer;
+  const wallet = bs58.encode(publicKeyDer.subarray(publicKeyDer.length - 32));
   const donor = await storage.registerDonor(wallet, "private donor note");
   const txId = "private-zcash-tx-id";
   const donation = await storage.addDonation({
@@ -50,7 +56,13 @@ import { createServer } from "node:http";
     amountZEC: 0.125,
     solanaWallet: wallet,
   });
-  await storage.updateDonation(donation.id, { crossL1Receipt: receipt });
+  await storage.updateDonation(donation.id, {
+    crossL1Receipt: {
+      ...receipt,
+      status: "solana_proof_minted",
+      solanaMintAddress: "DevnetMintAddressExample",
+    },
+  });
   await storage.addAgentLog("warn", "Private correlation log", {
     solanaWallet: wallet,
     memo: donor.paymentMemo,
@@ -76,6 +88,90 @@ import { createServer } from "node:http";
     });
     assert.equal(simulation.status, 403, "production must reject simulated donations");
 
+    const privateWithoutSession = await fetch(`${base}/donations/mine`);
+    assert.equal(privateWithoutSession.status, 401, "private donation status must require wallet proof");
+
+    const challengeResponse = await fetch(`${base}/wallet/challenge`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ solanaWallet: wallet }),
+    });
+    assert.equal(challengeResponse.status, 201);
+    const challengeJson = await challengeResponse.json() as {
+      data: { challengeId: string; solanaWallet: string; message: string; expiresAt: string };
+    };
+    assert.equal(challengeJson.data.solanaWallet, wallet);
+    assert.match(challengeJson.data.message, /This will not send a transaction/);
+
+    const signature = signEd25519(
+      null,
+      Buffer.from(challengeJson.data.message, "utf8"),
+      keypair.privateKey,
+    ).toString("base64");
+    const sessionResponse = await fetch(`${base}/wallet/session`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        solanaWallet: wallet,
+        challengeId: challengeJson.data.challengeId,
+        message: challengeJson.data.message,
+        signature,
+      }),
+    });
+    assert.equal(sessionResponse.status, 201, "valid Solana signature should create a short-lived status session");
+    const sessionJson = await sessionResponse.json() as { data: { token: string; solanaWallet: string } };
+    assert.equal(sessionJson.data.solanaWallet, wallet);
+    assert.ok(sessionJson.data.token.length >= 30);
+
+    const replayedChallenge = await fetch(`${base}/wallet/session`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        solanaWallet: wallet,
+        challengeId: challengeJson.data.challengeId,
+        message: challengeJson.data.message,
+        signature,
+      }),
+    });
+    assert.equal(replayedChallenge.status, 401, "challenge must be one-time-use");
+
+    const unauthenticatedRegistration = await fetch(`${base}/register`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ solanaWallet: wallet }),
+    });
+    assert.equal(unauthenticatedRegistration.status, 401, "wallet registration must require ownership proof");
+
+    const otherWallet = bs58.encode(Buffer.alloc(32, 7));
+    const mismatchedRegistration = await fetch(`${base}/register`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${sessionJson.data.token}`,
+      },
+      body: JSON.stringify({ solanaWallet: otherWallet }),
+    });
+    assert.equal(mismatchedRegistration.status, 403, "a session cannot register another wallet");
+
+    const authorizedRegistration = await fetch(`${base}/register`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${sessionJson.data.token}`,
+      },
+      body: JSON.stringify({ solanaWallet: wallet }),
+    });
+    assert.equal(authorizedRegistration.status, 201);
+
+    const privateResponse = await fetch(`${base}/donations/mine`, {
+      headers: { authorization: `Bearer ${sessionJson.data.token}` },
+    });
+    assert.equal(privateResponse.status, 200);
+    const privateJson = await privateResponse.json() as { data: Array<Record<string, unknown>> };
+    assert.equal(privateJson.data[0].txId, txId);
+    assert.equal(privateJson.data[0].solanaWallet, wallet);
+    assert.equal(privateJson.data[0].amountZEC, 0.125);
+
     const donorsResponse = await fetch(`${base}/donors`);
     const donors = await donorsResponse.json() as { data: Array<Record<string, unknown>> };
     assert.equal(donors.data[0].id, donor.id);
@@ -86,8 +182,12 @@ import { createServer } from "node:http";
     const donationsResponse = await fetch(`${base}/donations`);
     const donations = await donationsResponse.json() as { data: Array<Record<string, unknown>> };
     assert.equal(donations.data[0].id, donation.id);
+    assert.equal(donations.data[0].status, "minted");
+    assert.equal(donations.data[0].nftMintAddress, "DevnetMintAddressExample");
     assert.equal("txId" in donations.data[0], false);
     assert.equal("solanaWallet" in donations.data[0], false);
+    assert.equal("amountZEC" in donations.data[0], false);
+    assert.equal("detectedAt" in donations.data[0], false);
     assert.equal("crossL1Receipt" in donations.data[0], false);
     assert.equal("nftMintSignature" in donations.data[0], false);
     assert.equal("error" in donations.data[0], false);
@@ -98,6 +198,8 @@ import { createServer } from "node:http";
     assert.equal("sourceTxId" in receipts.data.receipts[0], false);
     assert.equal("solanaWallet" in receipts.data.receipts[0], false);
     assert.equal("donationId" in receipts.data.receipts[0], false);
+    assert.equal("amountZEC" in receipts.data.receipts[0], false);
+    assert.equal("createdAt" in receipts.data.receipts[0], false);
 
     const logsResponse = await fetch(`${base}/agent/logs`);
     const logs = await logsResponse.json() as { data: Array<Record<string, unknown>> };
@@ -106,7 +208,7 @@ import { createServer } from "node:http";
     assert.equal(JSON.stringify(logs).includes("private-zcash-tx-id"), false);
     assert.equal(JSON.stringify(logs).includes("private-solana-signature"), false);
 
-    console.log("SHIELDGIVE PRODUCTION API SAFETY: PASS");
+    console.log("SHIELDGIVE PRODUCTION API SAFETY + SIGNED WALLET ACCESS: PASS");
   } finally {
     await new Promise<void>((resolve, reject) =>
       server.close((err) => err ? reject(err) : resolve()),
