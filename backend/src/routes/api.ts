@@ -98,7 +98,7 @@ const simulateSchema = z.object({
 
 router.post("/agent/simulate", async (req, res) => {
   try {
-    if (!zcashWatcher.isMockMode() || !solanaMinter.isMockMode()) {
+    if (process.env.NODE_ENV === "production" || !zcashWatcher.isMockMode() || !solanaMinter.isMockMode()) {
       res.status(403).json({
         success: false,
         error: "Simulation endpoint is disabled while a live chain integration is active",
