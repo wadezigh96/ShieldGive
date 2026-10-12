@@ -110,7 +110,7 @@ function logFromRow(row: DbRow): AgentLogEntry {
  * only for local development and deterministic tests. Production fails closed
  * when DATABASE_URL is missing; it never silently falls back to RAM.
  */
-class Storage {
+export class Storage {
   private initPromise?: Promise<void>;
   private pool?: Pool;
   private mode?: StorageMode;
