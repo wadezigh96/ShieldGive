@@ -47,14 +47,39 @@ router.get("/donors", (_req, res) => {
 });
 
 router.get("/donations", (_req, res) => {
-  res.json({ success: true, data: storage.getDonations() });
+  const donations = storage.getDonations();
+  // Never publish the private cross-chain linkage fields from the raw store.
+  const data = process.env.NODE_ENV === "production"
+    ? donations.map((donation) => ({
+        id: donation.id,
+        amountZEC: donation.amountZEC,
+        detectedAt: donation.detectedAt,
+        status: donation.status,
+        nftMintAddress: donation.nftMintAddress,
+      }))
+    : donations;
+  res.json({ success: true, data });
 });
 
 router.get("/cross-l1/receipts", (_req, res) => {
   const receipts = storage
     .getDonations()
     .filter((donation) => donation.crossL1Receipt)
-    .map((donation) => donation.crossL1Receipt);
+    .map((donation) => donation.crossL1Receipt)
+    .filter((receipt) => receipt !== undefined)
+    .map((receipt) => {
+      if (process.env.NODE_ENV !== "production") return receipt;
+      // Do not publicly correlate a shielded Zcash transaction with a Solana wallet.
+      return {
+        receiptId: receipt.receiptId,
+        sourceChain: receipt.sourceChain,
+        destinationChain: receipt.destinationChain,
+        amountZEC: receipt.amountZEC,
+        createdAt: receipt.createdAt,
+        status: receipt.status,
+        solanaMintAddress: receipt.solanaMintAddress,
+      };
+    });
 
   res.json({
     success: true,
