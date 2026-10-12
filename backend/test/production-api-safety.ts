@@ -174,10 +174,7 @@ import bs58 from "bs58";
 
     const donorsResponse = await fetch(`${base}/donors`);
     const donors = await donorsResponse.json() as { data: Array<Record<string, unknown>> };
-    assert.equal(donors.data[0].id, donor.id);
-    assert.equal("solanaWallet" in donors.data[0], false);
-    assert.equal("note" in donors.data[0], false);
-    assert.equal("paymentMemo" in donors.data[0], false);
+    assert.equal(donors.data.length, 0, "production must not publish a donor directory");
 
     const donationsResponse = await fetch(`${base}/donations`);
     const donations = await donationsResponse.json() as { data: Array<Record<string, unknown>> };
