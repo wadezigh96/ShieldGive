@@ -139,7 +139,7 @@ export class Storage {
   private async initializeInternal(): Promise<void> {
     const connectionString = process.env.DATABASE_URL;
     if (!connectionString) {
-      if (process.env.NODE_ENV === "production" && process.env.SHIELDGIVE_TEST_MODE !== "true") {
+      if (process.env.NODE_ENV === "production") {
         throw new Error("DATABASE_URL is required in production; refusing in-memory storage");
       }
       this.mode = "memory";
