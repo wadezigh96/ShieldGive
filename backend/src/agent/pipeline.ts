@@ -23,7 +23,7 @@ function donorIdFromMemo(memo?: string): string | undefined {
   return match?.[1];
 }
 
-export async function processIncomingTx(tx: IncomingShieldedTx): Promise<void> {
+async function processIncomingTxInternal(tx: IncomingShieldedTx): Promise<void> {
   if (storage.isTxProcessed(tx.txId)) {
     storage.addAgentLog("info", "Skipping successfully processed tx", {
       txId: tx.txId,
@@ -175,6 +175,39 @@ export async function processIncomingTx(tx: IncomingShieldedTx): Promise<void> {
       receiptId: crossL1Receipt.receiptId,
       error: message,
     });
+  }
+}
+
+
+const processingTxIds = new Set<string>();
+
+/**
+ * Prevent concurrent polling/manual requests from minting the same source
+ * transaction more than once within this process.
+ */
+export async function processIncomingTx(tx: IncomingShieldedTx): Promise<void> {
+  if (processingTxIds.has(tx.txId)) {
+    storage.addAgentLog("warn", "Skipping duplicate in-flight transaction", {
+      txId: tx.txId,
+    });
+    return;
+  }
+
+  const existing = storage.findDonationByTxId(tx.txId);
+  if (existing?.status === "minted") {
+    storage.markTxProcessed(tx.txId);
+    storage.addAgentLog("info", "Skipping transaction with an existing minted proof", {
+      txId: tx.txId,
+      donationId: existing.id,
+    });
+    return;
+  }
+
+  processingTxIds.add(tx.txId);
+  try {
+    await processIncomingTxInternal(tx);
+  } finally {
+    processingTxIds.delete(tx.txId);
   }
 }
 

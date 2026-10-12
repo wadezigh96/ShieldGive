@@ -105,7 +105,9 @@ export class ZcashWatcher {
 
     return records
       .filter((record) => {
-        const amount = Number(record.amount ?? 0);
+        const amount = Number(
+          record.amount ?? (record.amountZat !== undefined ? Number(record.amountZat) / 100_000_000 : 0)
+        );
         const recordAddress = (record as any).address as string | undefined;
         const confirmations = Number((record as any).confirmations ?? 0);
         return record.txid && amount > 0 && confirmations >= minconf &&

@@ -38,18 +38,48 @@ router.post("/register", (req, res) => {
 });
 
 router.get("/donors", (_req, res) => {
-  res.json({ success: true, data: storage.getDonors() });
+  // Public production responses must not expose donor wallet addresses or notes.
+  const donors = storage.getDonors();
+  const data = process.env.NODE_ENV === "production"
+    ? donors.map(({ id, registeredAt }) => ({ id, registeredAt }))
+    : donors;
+  res.json({ success: true, data });
 });
 
 router.get("/donations", (_req, res) => {
-  res.json({ success: true, data: storage.getDonations() });
+  const donations = storage.getDonations();
+  // Never publish the private cross-chain linkage fields from the raw store.
+  const data = process.env.NODE_ENV === "production"
+    ? donations.map((donation) => ({
+        id: donation.id,
+        amountZEC: donation.amountZEC,
+        detectedAt: donation.detectedAt,
+        status: donation.status,
+        nftMintAddress: donation.nftMintAddress,
+      }))
+    : donations;
+  res.json({ success: true, data });
 });
 
 router.get("/cross-l1/receipts", (_req, res) => {
   const receipts = storage
     .getDonations()
     .filter((donation) => donation.crossL1Receipt)
-    .map((donation) => donation.crossL1Receipt);
+    .map((donation) => donation.crossL1Receipt)
+    .filter((receipt) => receipt !== undefined)
+    .map((receipt) => {
+      if (process.env.NODE_ENV !== "production") return receipt;
+      // Do not publicly correlate a shielded Zcash transaction with a Solana wallet.
+      return {
+        receiptId: receipt.receiptId,
+        sourceChain: receipt.sourceChain,
+        destinationChain: receipt.destinationChain,
+        amountZEC: receipt.amountZEC,
+        createdAt: receipt.createdAt,
+        status: receipt.status,
+        solanaMintAddress: receipt.solanaMintAddress,
+      };
+    });
 
   res.json({
     success: true,
@@ -64,8 +94,19 @@ router.get("/cross-l1/receipts", (_req, res) => {
 });
 
 router.get("/agent/logs", (req, res) => {
-  const limit = Math.min(100, parseInt(String(req.query.limit || "40"), 10));
-  res.json({ success: true, data: storage.getAgentLogs(limit) });
+  const parsedLimit = parseInt(String(req.query.limit || "40"), 10);
+  const limit = Number.isFinite(parsedLimit) ? Math.max(1, Math.min(100, parsedLimit)) : 40;
+  const logs = storage.getAgentLogs(limit);
+  // Raw metadata can contain wallet addresses, transaction IDs, and private memos.
+  const data = process.env.NODE_ENV === "production"
+    ? logs.map((entry) => ({
+        id: entry.id,
+        timestamp: entry.timestamp,
+        level: entry.level,
+        message: entry.message,
+      }))
+    : logs;
+  res.json({ success: true, data });
 });
 
 router.get("/agent/status", (_req, res) => {
@@ -98,7 +139,7 @@ const simulateSchema = z.object({
 
 router.post("/agent/simulate", async (req, res) => {
   try {
-    if (!zcashWatcher.isMockMode() || !solanaMinter.isMockMode()) {
+    if (process.env.NODE_ENV === "production" || !zcashWatcher.isMockMode() || !solanaMinter.isMockMode()) {
       res.status(403).json({
         success: false,
         error: "Simulation endpoint is disabled while a live chain integration is active",

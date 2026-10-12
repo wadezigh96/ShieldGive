@@ -33,7 +33,6 @@ const rpcServer = createServer((req, res) => {
       result: [{
         pool: "sapling",
         txid: txId,
-        amount: 0.25,
         amountZat: 25_000_000,
         memo: memoHex,
         confirmations: 2,

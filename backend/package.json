@@ -12,7 +12,8 @@
     "test:zcash-readonly": "tsx test/zcash-readonly.ts",
     "test:zcash-mock-rpc": "tsx test/zcash-mock-rpc-e2e.ts",
     "test:solana-devnet-preflight": "tsx test/solana-devnet-preflight.ts",
-    "test:zcash-to-solana-devnet-e2e": "tsx test/zcash-to-solana-devnet-e2e.ts"
+    "test:zcash-to-solana-devnet-e2e": "tsx test/zcash-to-solana-devnet-e2e.ts",
+    "test:production-api-safety": "tsx test/production-api-safety.ts"
   },
   "keywords": [
     "zcash",
