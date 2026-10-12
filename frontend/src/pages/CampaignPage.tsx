@@ -28,7 +28,7 @@ export default function CampaignPage() {
     return account && "address" in account ? account.address : "";
   }, [user]);
 
-  useEffect(() => { if (privySolanaWallet) setWallet(privySolanaWallet); }, [privySolanaWallet]);
+  useEffect(() => { setWallet(privySolanaWallet); }, [privySolanaWallet]);
 
   useEffect(() => {
     api.getCampaign().then(setCampaign)
@@ -322,7 +322,7 @@ export default function CampaignPage() {
               <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
                 <div>
                   <span className="text-slate-500">Amount</span>
-                  <p className="mt-1 font-mono text-slate-200">{latestDonation.amountZEC.toFixed(4)} ZEC</p>
+                  <p className="mt-1 font-mono text-slate-200">{latestDonation.amountZEC?.toFixed(4) ?? "—"} ZEC</p>
                 </div>
                 <div>
                   <span className="text-slate-500">Zcash tx</span>
