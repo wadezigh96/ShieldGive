@@ -212,24 +212,25 @@ const processingTxIds = new Set<string>();
 
 /** In-process guard complements the persistent PostgreSQL mint claim. */
 export async function processIncomingTx(tx: IncomingShieldedTx): Promise<void> {
+  // Acquire the in-process lock before the first await; otherwise two concurrent
+  // callers can both pass the guard while waiting for the database read.
   if (processingTxIds.has(tx.txId)) {
     await storage.addAgentLog("warn", "Skipping duplicate in-flight transaction", { txId: tx.txId });
     return;
   }
 
-  const existing = await storage.findDonationByTxId(tx.txId);
-  if (existing && terminalOrUncertain.has(existing.status)) {
-    if (existing.status === "minted") await storage.markTxProcessed(tx.txId);
-    await storage.addAgentLog("info", "Skipping existing donation that is minted or awaiting reconciliation", {
-      txId: tx.txId,
-      donationId: existing.id,
-      status: existing.status,
-    });
-    return;
-  }
-
   processingTxIds.add(tx.txId);
   try {
+    const existing = await storage.findDonationByTxId(tx.txId);
+    if (existing && terminalOrUncertain.has(existing.status)) {
+      if (existing.status === "minted") await storage.markTxProcessed(tx.txId);
+      await storage.addAgentLog("info", "Skipping existing donation that is minted or awaiting reconciliation", {
+        txId: tx.txId,
+        donationId: existing.id,
+        status: existing.status,
+      });
+      return;
+    }
     await processIncomingTxInternal(tx);
   } finally {
     processingTxIds.delete(tx.txId);
