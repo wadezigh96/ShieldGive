@@ -16,13 +16,19 @@ const donor = storage.registerDonor(
 assert.match(donor.paymentMemo, /^ShieldGive donor=/);
 
 const txId = "mock-zcash-tx-e2e-001";
-await processIncomingTx({
+const incomingTx = {
   txId,
   amountZEC: 0.25,
   memo: donor.paymentMemo,
   confirmations: 3,
   receivedAt: new Date().toISOString(),
-});
+};
+
+// The same source transaction arriving concurrently must create one proof only.
+await Promise.all([
+  processIncomingTx(incomingTx),
+  processIncomingTx(incomingTx),
+]);
 
 const donations = storage.getDonations();
 assert.equal(donations.length, 1, "expected exactly one donation record");
