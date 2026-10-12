@@ -39,13 +39,15 @@ export class SolanaMinter {
   }): Promise<MintResult> {
     const { recipientWallet, amountZEC, donationId, txId } = params;
 
-    storage.addAgentLog("info", "Starting NFT mint", { recipientWallet, amountZEC, donationId });
+    await storage.addAgentLog("info", "Starting NFT mint", {
+      recipientWallet, amountZEC, donationId,
+    });
 
     if (this.mockMode) {
       const mockMint = `mint_${donationId.replace(/-/g, "").slice(0, 16)}`;
       const mockSig = `sig_${txId.slice(0, 16)}`;
-      await new Promise((r) => setTimeout(r, 800));
-      storage.addAgentLog("success", "NFT minted (mock mode)", {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      await storage.addAgentLog("success", "NFT minted (mock mode)", {
         mintAddress: mockMint, signature: mockSig, recipientWallet,
       });
       return { success: true, mintAddress: mockMint, signature: mockSig };
@@ -53,10 +55,13 @@ export class SolanaMinter {
 
     if (process.env.SOLANA_LIVE_MINT_ENABLED !== "true") {
       const error = "Live Solana minting is disabled; set SOLANA_LIVE_MINT_ENABLED=true explicitly";
-      storage.addAgentLog("warn", "Live Solana mint blocked by feature flag", { recipientWallet, txId });
-      return { success: false, error };
+      await storage.addAgentLog("warn", "Live Solana mint blocked by feature flag", {
+        recipientWallet, txId,
+      });
+      return { success: false, error, outcomeUnknown: false };
     }
 
+    let submissionAttempted = false;
     try {
       const rpc = process.env.SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
       const umi = createUmi(rpc).use(mplTokenMetadata());
@@ -68,10 +73,11 @@ export class SolanaMinter {
       const symbol = process.env.SOLANA_NFT_SYMBOL || "SGIVE";
       const uri = process.env.SOLANA_NFT_METADATA_URI;
 
-      if (!uri) {
-        throw new Error("SOLANA_NFT_METADATA_URI is required for live minting");
-      }
+      if (!uri) throw new Error("SOLANA_NFT_METADATA_URI is required for live minting");
 
+      // From this point, an RPC error may mean the transaction was submitted
+      // but the client did not receive confirmation. Never auto-retry blindly.
+      submissionAttempted = true;
       const result = await createNft(umi, {
         mint,
         name,
@@ -84,15 +90,16 @@ export class SolanaMinter {
       const signature = bs58.encode(result.signature);
       const mintAddress = mint.publicKey.toString();
 
-      storage.addAgentLog("success", "NFT minted on Solana", {
+      await storage.addAgentLog("success", "NFT minted on Solana", {
         mintAddress, signature, recipientWallet, amountZEC, txId,
       });
-
       return { success: true, mintAddress, signature };
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
-      storage.addAgentLog("error", "Live Solana NFT mint failed", { error, recipientWallet, txId });
-      return { success: false, error };
+      await storage.addAgentLog("error", "Live Solana NFT mint failed", {
+        error, recipientWallet, txId, outcomeUnknown: submissionAttempted,
+      });
+      return { success: false, error, outcomeUnknown: submissionAttempted };
     }
   }
 }
