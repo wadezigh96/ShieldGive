@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
+import { createHash, randomBytes } from "node:crypto";
 import { Pool, type PoolClient } from "pg";
 import type {
   Campaign,
@@ -11,6 +12,15 @@ import type {
 type StorageMode = "memory" | "postgres";
 type DonationInput = Omit<DetectedDonation, "id">;
 type DbRow = Record<string, any>;
+type WalletChallenge = {
+  id: string;
+  solanaWallet: string;
+  message: string;
+  createdAt: string;
+  expiresAt: string;
+  consumedAt?: string;
+};
+type WalletSession = { solanaWallet: string; expiresAt: string };
 
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS shieldgive_campaigns (
@@ -54,6 +64,22 @@ CREATE TABLE IF NOT EXISTS shieldgive_agent_logs (
   meta JSONB
 );
 CREATE INDEX IF NOT EXISTS shieldgive_agent_logs_timestamp_idx ON shieldgive_agent_logs(timestamp DESC);
+CREATE TABLE IF NOT EXISTS shieldgive_wallet_challenges (
+  id TEXT PRIMARY KEY,
+  solana_wallet TEXT NOT NULL,
+  message TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  consumed_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS shieldgive_wallet_challenges_expiry_idx ON shieldgive_wallet_challenges(expires_at);
+CREATE TABLE IF NOT EXISTS shieldgive_wallet_sessions (
+  token_hash TEXT PRIMARY KEY,
+  solana_wallet TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS shieldgive_wallet_sessions_expiry_idx ON shieldgive_wallet_sessions(expires_at);
 `;
 
 function dateString(value: unknown): string {
@@ -130,6 +156,8 @@ export class Storage {
   private donations = new Map<string, DetectedDonation>();
   private processedTxIds = new Set<string>();
   private agentLogs: AgentLogEntry[] = [];
+  private walletChallenges = new Map<string, WalletChallenge>();
+  private walletSessions = new Map<string, WalletSession>();
 
   initialize(): Promise<void> {
     if (!this.initPromise) this.initPromise = this.initializeInternal();
@@ -317,6 +345,149 @@ export class Storage {
   async getLatestDonor(): Promise<DonorRegistration | undefined> {
     const donors = await this.getDonors();
     return donors[0];
+  }
+
+  async getDonationsByWallet(wallet: string): Promise<DetectedDonation[]> {
+    await this.ready();
+    const normalized = wallet.trim();
+    if (this.pool) {
+      const result = await this.pool.query(
+        "SELECT * FROM shieldgive_donations WHERE solana_wallet = $1 ORDER BY detected_at DESC, id DESC",
+        [normalized],
+      );
+      return result.rows.map(donationFromRow);
+    }
+    return Array.from(this.donations.values())
+      .filter((donation) => donation.solanaWallet === normalized)
+      .sort((a, b) => new Date(b.detectedAt).getTime() - new Date(a.detectedAt).getTime())
+      .map((donation) => ({ ...donation }));
+  }
+
+  async createWalletChallenge(solanaWallet: string): Promise<WalletChallenge> {
+    await this.ready();
+    const id = uuidv4();
+    const nonce = randomBytes(32).toString("base64url");
+    const createdAt = new Date();
+    const expiresAt = new Date(createdAt.getTime() + 5 * 60 * 1000);
+    const message = [
+      "ShieldGive private donation access",
+      "Purpose: Verify wallet ownership for private donation status and registration. This will not send a transaction.",
+      `Wallet: ${solanaWallet}`,
+      `Challenge ID: ${id}`,
+      `Nonce: ${nonce}`,
+      `Issued At: ${createdAt.toISOString()}`,
+      `Expires At: ${expiresAt.toISOString()}`,
+    ].join("\\n");
+    const challenge: WalletChallenge = {
+      id,
+      solanaWallet,
+      message,
+      createdAt: createdAt.toISOString(),
+      expiresAt: expiresAt.toISOString(),
+    };
+    if (this.pool) {
+      await this.pool.query(
+        "DELETE FROM shieldgive_wallet_challenges WHERE expires_at < NOW() OR consumed_at IS NOT NULL",
+      );
+      await this.pool.query(
+        `INSERT INTO shieldgive_wallet_challenges
+          (id, solana_wallet, message, created_at, expires_at, consumed_at)
+         VALUES ($1, $2, $3, $4, $5, NULL)`,
+        [id, solanaWallet, message, challenge.createdAt, challenge.expiresAt],
+      );
+    } else {
+      for (const [key, value] of this.walletChallenges) {
+        if (value.consumedAt || new Date(value.expiresAt).getTime() <= createdAt.getTime()) {
+          this.walletChallenges.delete(key);
+        }
+      }
+      this.walletChallenges.set(id, challenge);
+    }
+    return challenge;
+  }
+
+  async getWalletChallenge(id: string): Promise<WalletChallenge | undefined> {
+    await this.ready();
+    if (this.pool) {
+      const result = await this.pool.query(
+        `SELECT id, solana_wallet, message, created_at, expires_at, consumed_at
+         FROM shieldgive_wallet_challenges
+         WHERE id = $1 AND consumed_at IS NULL AND expires_at > NOW()`,
+        [id],
+      );
+      const row = result.rows[0];
+      return row ? {
+        id: String(row.id),
+        solanaWallet: String(row.solana_wallet),
+        message: String(row.message),
+        createdAt: dateString(row.created_at),
+        expiresAt: dateString(row.expires_at),
+      } : undefined;
+    }
+    const challenge = this.walletChallenges.get(id);
+    if (!challenge || challenge.consumedAt || new Date(challenge.expiresAt).getTime() <= Date.now()) {
+      return undefined;
+    }
+    return { ...challenge };
+  }
+
+  async consumeWalletChallenge(id: string, wallet: string, message: string): Promise<boolean> {
+    await this.ready();
+    if (this.pool) {
+      const result = await this.pool.query(
+        `UPDATE shieldgive_wallet_challenges SET consumed_at = NOW()
+         WHERE id = $1 AND solana_wallet = $2 AND message = $3
+           AND consumed_at IS NULL AND expires_at > NOW()
+         RETURNING id`,
+        [id, wallet, message],
+      );
+      return (result.rowCount ?? 0) > 0;
+    }
+    const challenge = this.walletChallenges.get(id);
+    if (!challenge || challenge.consumedAt || challenge.solanaWallet !== wallet ||
+        challenge.message !== message || new Date(challenge.expiresAt).getTime() <= Date.now()) {
+      return false;
+    }
+    challenge.consumedAt = new Date().toISOString();
+    this.walletChallenges.set(id, challenge);
+    return true;
+  }
+
+  async createWalletSession(wallet: string): Promise<{ token: string; expiresAt: string }> {
+    await this.ready();
+    const token = randomBytes(32).toString("base64url");
+    const tokenHash = createHash("sha256").update(token).digest("hex");
+    const createdAt = new Date();
+    const expiresAt = new Date(createdAt.getTime() + 15 * 60 * 1000);
+    if (this.pool) {
+      await this.pool.query("DELETE FROM shieldgive_wallet_sessions WHERE expires_at < NOW()");
+      await this.pool.query(
+        "INSERT INTO shieldgive_wallet_sessions (token_hash, solana_wallet, created_at, expires_at) VALUES ($1, $2, $3, $4)",
+        [tokenHash, wallet, createdAt.toISOString(), expiresAt.toISOString()],
+      );
+    } else {
+      for (const [key, session] of this.walletSessions) {
+        if (new Date(session.expiresAt).getTime() <= createdAt.getTime()) this.walletSessions.delete(key);
+      }
+      this.walletSessions.set(tokenHash, { solanaWallet: wallet, expiresAt: expiresAt.toISOString() });
+    }
+    return { token, expiresAt: expiresAt.toISOString() };
+  }
+
+  async getWalletForSession(token: string): Promise<string | undefined> {
+    await this.ready();
+    if (!token || token.length < 30 || token.length > 200) return undefined;
+    const tokenHash = createHash("sha256").update(token).digest("hex");
+    if (this.pool) {
+      const result = await this.pool.query(
+        "SELECT solana_wallet FROM shieldgive_wallet_sessions WHERE token_hash = $1 AND expires_at > NOW()",
+        [tokenHash],
+      );
+      return result.rows[0] ? String(result.rows[0].solana_wallet) : undefined;
+    }
+    const session = this.walletSessions.get(tokenHash);
+    if (!session || new Date(session.expiresAt).getTime() <= Date.now()) return undefined;
+    return session.solanaWallet;
   }
 
   async isTxProcessed(txId: string): Promise<boolean> {
