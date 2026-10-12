@@ -127,12 +127,7 @@ export class SolanaMinter {
       await storage.addAgentLog("error", "Live Solana NFT mint failed", {
         error, recipientWallet, txId, outcomeUnknown: submissionAttempted,
       });
-      return {
-        success: false,
-        error,
-        outcomeUnknown: submissionAttempted,
-        ...(submissionAttempted ? {} : {}),
-      };
+      return { success: false, error, outcomeUnknown: submissionAttempted };
     }
   }
 }
