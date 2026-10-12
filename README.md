@@ -77,7 +77,8 @@ This keeps complexity low while still demonstrating autonomous execution for the
 | Scheduling         | `node-cron`                         |
 | Zcash              | Viewing key + light client (mocked for public demo) |
 | Solana             | Metaplex / UMI intended for live minting; demo uses local proof records |
-| Database (development/test) | In-memory store for quick deterministic tests |\n| Database (production) | PostgreSQL with unique source-transaction IDs and atomic mint claims |
+| Database (development/test) | In-memory store for quick deterministic tests | 
+| Database (production) | PostgreSQL with unique source-transaction IDs and atomic mint claims |
 
 ---
 
@@ -140,10 +141,19 @@ Edit `backend/.env`:
 ```env
 PORT=3001
 POLL_INTERVAL_SECONDS=30
-ZCASH_VIEWING_KEY=your_viewing_key_here   # or leave empty for mock mode
-SOLANA_RPC_URL=https://api.devnet.solana.com
-SOLANA_PRIVATE_KEY=...                    # for mint authority (demo)
+DATABASE_URL=postgres://USER:PASSWORD@HOST:5432/DATABASE
+DB_POOL_MAX=5
+ZCASH_MODE=live
+ZCASH_RPC_URL=http://127.0.0.1:8232
+ZCASH_RPC_USER=
+ZCASH_RPC_PASSWORD=
+ZCASH_MIN_CONFIRMATIONS=1
 CAMPAIGN_SHIELDED_ADDRESS=zs1...
+SOLANA_NETWORK=devnet
+SOLANA_RPC_URL=https://api.devnet.solana.com
+SOLANA_PRIVATE_KEY=...                    # devnet-only key for testing
+SOLANA_NFT_METADATA_URI=https://...       # immutable/public metadata JSON
+SOLANA_LIVE_MINT_ENABLED=false             # keep disabled until deliberate live test
 ```
 
 ### 3. Run
