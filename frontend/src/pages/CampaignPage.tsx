@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import { api, type Campaign, type DetectedDonation } from "../lib/api";
+import { useSignMessage, useWallets } from "@privy-io/react-auth/solana";
+import { api, type Campaign, type DetectedDonation, type WalletSession } from "../lib/api";
 
 export default function CampaignPage() {
   const { authenticated, login, logout, user } = usePrivy();
+  const { wallets: signingWallets } = useWallets();
+  const { signMessage } = useSignMessage();
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [wallet, setWallet] = useState("");
   const [note, setNote] = useState("");
@@ -14,6 +17,8 @@ export default function CampaignPage() {
   const [paymentMemo, setPaymentMemo] = useState("");
   const [latestDonation, setLatestDonation] = useState<DetectedDonation | null>(null);
   const [memoCopied, setMemoCopied] = useState(false);
+  const [statusSession, setStatusSession] = useState<WalletSession | null>(null);
+  const [verifyingWallet, setVerifyingWallet] = useState(false);
 
   const privySolanaWallet = useMemo(() => {
     const accounts = user?.linkedAccounts ?? [];
@@ -23,7 +28,7 @@ export default function CampaignPage() {
     return account && "address" in account ? account.address : "";
   }, [user]);
 
-  useEffect(() => { if (privySolanaWallet) setWallet(privySolanaWallet); }, [privySolanaWallet]);
+  useEffect(() => { setWallet(privySolanaWallet); }, [privySolanaWallet]);
 
   useEffect(() => {
     api.getCampaign().then(setCampaign)
@@ -32,7 +37,8 @@ export default function CampaignPage() {
   }, []);
 
   useEffect(() => {
-    if (!wallet) {
+    if (!statusSession || statusSession.solanaWallet !== wallet.trim() ||
+        new Date(statusSession.expiresAt).getTime() <= Date.now()) {
       setLatestDonation(null);
       return;
     }
@@ -40,18 +46,20 @@ export default function CampaignPage() {
     let active = true;
     const refresh = async () => {
       try {
-        const donations = await api.getDonations();
+        const donations = await api.getMyDonations(statusSession.token);
         if (!active) return;
-        const mine = donations
-          .filter((donation) => donation.solanaWallet === wallet)
-          .sort((a, b) => new Date(b.detectedAt).getTime() - new Date(a.detectedAt).getTime())[0];
-        setLatestDonation(mine ?? null);
+        const mine = donations[0] ?? null;
+        setLatestDonation(mine);
         if (mine?.status === "minted") {
           const updatedCampaign = await api.getCampaign();
           if (active) setCampaign(updatedCampaign);
         }
-      } catch {
-        // Keep the last known status; the next poll will retry.
+      } catch (err) {
+        // A session expires after 15 minutes; require a fresh signed challenge.
+        if (active && err instanceof Error && err.message.includes("HTTP 401")) {
+          setStatusSession(null);
+          setLatestDonation(null);
+        }
       }
     };
 
@@ -61,7 +69,69 @@ export default function CampaignPage() {
       active = false;
       window.clearInterval(timer);
     };
-  }, [wallet]);
+  }, [wallet, statusSession]);
+
+  useEffect(() => {
+    if (statusSession && statusSession.solanaWallet !== wallet.trim()) {
+      setStatusSession(null);
+      setLatestDonation(null);
+    }
+  }, [wallet, statusSession]);
+
+  async function establishWalletSession(walletAddress: string): Promise<string> {
+    const existing = statusSession;
+    if (
+      existing &&
+      existing.solanaWallet === walletAddress &&
+      new Date(existing.expiresAt).getTime() > Date.now()
+    ) {
+      return existing.token;
+    }
+
+    const signingWallet = signingWallets.find((candidate) => candidate.address === walletAddress);
+    if (!signingWallet) {
+      throw new Error("Reconnect this Solana wallet in Privy before signing the ownership challenge.");
+    }
+
+    const challenge = await api.createWalletChallenge(walletAddress);
+    const signed = await signMessage({
+      message: new TextEncoder().encode(challenge.message),
+      wallet: signingWallet,
+      options: { uiOptions: { title: "Verify ShieldGive wallet ownership" } },
+    });
+    const signatureBase64 = btoa(
+      Array.from(signed.signature, (byte) => String.fromCharCode(byte)).join(""),
+    );
+    const session = await api.createWalletSession({
+      solanaWallet: walletAddress,
+      challengeId: challenge.challengeId,
+      message: challenge.message,
+      signature: signatureBase64,
+    });
+    setStatusSession(session);
+    return session.token;
+  }
+
+  async function handleVerifyWallet() {
+    if (!authenticated) { login(); return; }
+    if (!wallet.trim()) {
+      setMessage({ type: "error", text: "Connect a Privy Solana wallet first." });
+      return;
+    }
+    setVerifyingWallet(true);
+    setMessage(null);
+    try {
+      await establishWalletSession(wallet.trim());
+      setMessage({
+        type: "success",
+        text: "Wallet ownership verified. Private donation status is unlocked for 15 minutes. Signing a message does not send a transaction or charge a network fee.",
+      });
+    } catch (err) {
+      setMessage({ type: "error", text: err instanceof Error ? err.message : "Wallet verification failed" });
+    } finally {
+      setVerifyingWallet(false);
+    }
+  }
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
@@ -73,9 +143,15 @@ export default function CampaignPage() {
     setRegistering(true);
     setMessage(null);
     try {
-      const registration = await api.register(wallet.trim(), note.trim() || undefined);
+      const walletAddress = wallet.trim();
+      const sessionToken = await establishWalletSession(walletAddress);
+      const registration = await api.register(
+        walletAddress,
+        note.trim() || undefined,
+        sessionToken,
+      );
       setPaymentMemo(registration.paymentMemo);
-      setMessage({ type: "success", text: "Wallet registered. Use the payment memo below when sending ZEC so the private donation can be matched to this Solana proof wallet." });
+      setMessage({ type: "success", text: "Wallet ownership verified and registered. Use the payment memo below when sending ZEC so the private donation can be matched to this Solana proof wallet." });
       setNote("");
     } catch (err) {
       setMessage({ type: "error", text: err instanceof Error ? err.message : "Registration failed" });
@@ -125,6 +201,13 @@ export default function CampaignPage() {
           ? `Your proof NFT is recorded on Solana: ${latestDonation.nftMintAddress}`
           : "Your contribution proof has been minted on Solana.",
         tone: "text-shield-300",
+      };
+    }
+    if (latestDonation.status === "mint_unknown") {
+      return {
+        title: "Mint requires on-chain review",
+        detail: "The Solana RPC result was ambiguous. ShieldGive has blocked automatic retries to prevent duplicate proof NFTs; the transaction must be reconciled on-chain.",
+        tone: "text-amber-300",
       };
     }
     if (latestDonation.status === "failed") {
@@ -219,12 +302,27 @@ export default function CampaignPage() {
               </div>
               <span className="text-xs text-slate-500">updates every 4s</span>
             </div>
+            {!statusSession && (
+              <div className="mt-3">
+                <p className="mb-3 text-sm text-slate-400">
+                  Verify that you control this Solana wallet to read its private donation status. This asks for a message signature only; it does not send a transaction.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleVerifyWallet}
+                  disabled={verifyingWallet || !wallet}
+                  className="btn-secondary"
+                >
+                  {verifyingWallet ? "Verifying wallet…" : "Verify wallet for private status"}
+                </button>
+              </div>
+            )}
             <p className="mt-2 text-sm text-slate-400">{donationStatus().detail}</p>
-            {latestDonation && (
+            {latestDonation && statusSession && (
               <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
                 <div>
                   <span className="text-slate-500">Amount</span>
-                  <p className="mt-1 font-mono text-slate-200">{latestDonation.amountZEC.toFixed(4)} ZEC</p>
+                  <p className="mt-1 font-mono text-slate-200">{latestDonation.amountZEC?.toFixed(4) ?? "—"} ZEC</p>
                 </div>
                 <div>
                   <span className="text-slate-500">Zcash tx</span>

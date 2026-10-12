@@ -135,7 +135,7 @@ export class ZcashWatcher {
       memo: options?.memo || "ShieldGive donation",
     };
 
-    storage.addAgentLog("info", "Simulated shielded donation injected", {
+    await storage.addAgentLog("info", "Simulated shielded donation injected", {
       txId: tx.txId,
       amountZEC: tx.amountZEC,
     });

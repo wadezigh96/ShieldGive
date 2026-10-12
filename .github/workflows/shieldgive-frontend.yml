@@ -1,0 +1,27 @@
+name: ShieldGive Frontend Build
+
+on:
+  push:
+    branches:
+      - "fix/security-idempotency-audit"
+      - "feat/postgres-persistence-stage2"
+  pull_request:
+    paths:
+      - "frontend/**"
+      - ".github/workflows/shieldgive-frontend.yml"
+  workflow_dispatch:
+
+jobs:
+  frontend-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: npm run typecheck
+      - run: npm run build

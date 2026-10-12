@@ -50,6 +50,8 @@ export default function AgentDashboard() {
     }
   }
 
+  const simulationEnabled = !!status?.mockZcash && !!status?.mockSolana;
+
   const levelColor: Record<AgentLogEntry["level"], string> = {
     info: "text-slate-400",
     success: "text-shield-400",
@@ -106,7 +108,10 @@ export default function AgentDashboard() {
         </h2>
         <p className="text-sm text-slate-400 mb-4">
           Demo-only injection using the same correlation and processing path as the scheduled agent.
-          {status?.mode === "DEMO_LOCAL" && " This browser is using the local demo store because the backend is unavailable."}
+          {simulationEnabled
+            ? " Both chain integrations report mock mode."
+            : " Simulation is disabled unless both Zcash and Solana integrations are in mock mode."}
+          {status?.mode === "DEMO_LOCAL" && " The live backend is unavailable; simulation cannot run here."}
         </p>
 
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
@@ -121,8 +126,8 @@ export default function AgentDashboard() {
               onChange={(e) => setAmount(e.target.value)}
             />
           </div>
-          <button onClick={handleSimulate} disabled={simulating} className="btn-primary">
-            {simulating ? "Processing…" : "Run agent pipeline"}
+          <button onClick={handleSimulate} disabled={simulating || !simulationEnabled} className="btn-primary">
+            {simulating ? "Processing…" : simulationEnabled ? "Run mock agent pipeline" : "Simulation disabled"}
           </button>
         </div>
 

@@ -16,6 +16,12 @@ export interface DonorRegistration {
   paymentMemo: string;
 }
 
+export type CrossL1ProofStatus =
+  | "source_verified"
+  | "solana_proof_minted"
+  | "failed"
+  | "mint_outcome_unknown";
+
 export interface CrossL1DonationReceipt {
   receiptId: string;
   sourceChain: "zcash";
@@ -24,19 +30,29 @@ export interface CrossL1DonationReceipt {
   donationId: string;
   amountZEC: number;
   solanaWallet: string;
-  status: "source_verified" | "solana_proof_minted" | "failed";
+  status: CrossL1ProofStatus;
   createdAt: string;
   solanaMintAddress?: string;
 }
+
+export type DonationStatus =
+  | "pending"
+  | "validated"
+  | "minting"
+  | "minted"
+  | "failed"
+  | "mint_unknown";
 
 export interface DetectedDonation {
   id: string;
   txId: string;
   amountZEC: number;
   detectedAt: string;
-  status: "pending" | "validated" | "minted" | "failed";
+  status: DonationStatus;
   solanaWallet?: string;
   nftMintAddress?: string;
+  /** Kept private for reconciliation; never returned by public APIs. */
+  nftMintSignature?: string;
   crossL1Receipt?: CrossL1DonationReceipt;
   error?: string;
 }
@@ -54,4 +70,6 @@ export interface MintResult {
   mintAddress?: string;
   signature?: string;
   error?: string;
+  /** True when RPC submission was attempted and the final result may be ambiguous. */
+  outcomeUnknown?: boolean;
 }
