@@ -416,10 +416,110 @@ export class Storage {
     return { ...updated };
   }
 
-  private async findDonationById(id: string): Promise<DetectedDonation | undefined> {
-    if (!this.pool) return this.donations.get(id);
+  async findDonationById(id: string): Promise<DetectedDonation | undefined> {
+    await this.ready();
+    if (!this.pool) {
+      const donation = this.donations.get(id);
+      return donation ? { ...donation } : undefined;
+    }
     const result = await this.pool.query("SELECT * FROM shieldgive_donations WHERE id = $1", [id]);
     return result.rows[0] ? donationFromRow(result.rows[0]) : undefined;
+  }
+
+  /**
+   * Finalize a mint only after a separate on-chain verifier has checked the
+   * confirmed transaction, NFT mint account, and recipient token balance.
+   * The status transition and processed-tx marker commit together.
+   */
+  async completeMintReconciliation(
+    id: string,
+    mintAddress: string,
+    signature: string,
+  ): Promise<DetectedDonation> {
+    await this.ready();
+    if (!mintAddress.trim() || !signature.trim()) {
+      throw new Error("Mint address and confirmed Solana signature are required");
+    }
+
+    if (this.pool) {
+      const client = await this.pool.connect();
+      try {
+        await client.query("BEGIN");
+        const selected = await client.query(
+          "SELECT * FROM shieldgive_donations WHERE id = $1 FOR UPDATE",
+          [id],
+        );
+        if (!selected.rows[0]) throw new Error("Donation not found");
+        const existing = donationFromRow(selected.rows[0]);
+        if (existing.status === "minted") {
+          if (existing.nftMintAddress !== mintAddress || existing.nftMintSignature !== signature) {
+            throw new Error("Donation is already minted with a different address or signature");
+          }
+          await client.query(
+            "INSERT INTO shieldgive_processed_transactions (tx_id) VALUES ($1) ON CONFLICT (tx_id) DO NOTHING",
+            [existing.txId],
+          );
+          await client.query("COMMIT");
+          return existing;
+        }
+        if (existing.status !== "mint_unknown" && existing.status !== "minting") {
+          throw new Error(`Donation status ${existing.status} is not eligible for mint reconciliation`);
+        }
+        if (existing.nftMintAddress && existing.nftMintAddress !== mintAddress) {
+          throw new Error("Mint address does not match the candidate persisted before broadcast");
+        }
+        const receipt = existing.crossL1Receipt
+          ? { ...existing.crossL1Receipt, status: "solana_proof_minted" as const, solanaMintAddress: mintAddress }
+          : undefined;
+        const updated = await client.query(
+          `UPDATE shieldgive_donations
+           SET status = 'minted', nft_mint_address = $2, nft_mint_signature = $3,
+               cross_l1_receipt = $4::jsonb, error = NULL, updated_at = NOW()
+           WHERE id = $1 RETURNING *`,
+          [id, mintAddress, signature, receipt ? JSON.stringify(receipt) : null],
+        );
+        await client.query(
+          "INSERT INTO shieldgive_processed_transactions (tx_id) VALUES ($1) ON CONFLICT (tx_id) DO NOTHING",
+          [existing.txId],
+        );
+        await client.query("COMMIT");
+        return donationFromRow(updated.rows[0]);
+      } catch (error) {
+        await client.query("ROLLBACK").catch(() => undefined);
+        throw error;
+      } finally {
+        client.release();
+      }
+    }
+
+    const existing = this.donations.get(id);
+    if (!existing) throw new Error("Donation not found");
+    if (existing.status === "minted") {
+      if (existing.nftMintAddress !== mintAddress || existing.nftMintSignature !== signature) {
+        throw new Error("Donation is already minted with a different address or signature");
+      }
+      this.processedTxIds.add(existing.txId);
+      return { ...existing };
+    }
+    if (existing.status !== "mint_unknown" && existing.status !== "minting") {
+      throw new Error(`Donation status ${existing.status} is not eligible for mint reconciliation`);
+    }
+    if (existing.nftMintAddress && existing.nftMintAddress !== mintAddress) {
+      throw new Error("Mint address does not match the candidate persisted before broadcast");
+    }
+    const updated: DetectedDonation = {
+      ...existing,
+      status: "minted",
+      nftMintAddress: mintAddress,
+      nftMintSignature: signature,
+      crossL1Receipt: existing.crossL1Receipt
+        ? { ...existing.crossL1Receipt, status: "solana_proof_minted", solanaMintAddress: mintAddress }
+        : undefined,
+      error: undefined,
+    };
+    this.donations.set(id, updated);
+    this.processedTxIds.add(existing.txId);
+    return { ...updated };
   }
 
   /**
