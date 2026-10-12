@@ -5,6 +5,7 @@ on:
     branches:
       - "feat/cross-l1-zcash-solana-proof"
       - "fix/security-idempotency-audit"
+      - "feat/postgres-persistence-stage2"
   workflow_dispatch:
 
 jobs:
