@@ -10,9 +10,25 @@ import { createServer } from "node:http";
   process.env.ZCASH_MODE = "mock";
 
   const express = (await import("express")).default;
-  const { storage } = await import("../src/services/storage.js");
+  const { storage, Storage } = await import("../src/services/storage.js");
   const { createCrossL1Receipt } = await import("../src/services/crossL1Receipt.js");
   const { default: apiRouter } = await import("../src/routes/api.js");
+  const { solanaMinter } = await import("../src/services/solanaMinter.js");
+
+  // Explicitly prove production cannot silently fall back to RAM.
+  const productionGuard = new Storage();
+  delete process.env.SHIELDGIVE_TEST_MODE;
+  await assert.rejects(productionGuard.initialize(), /DATABASE_URL is required in production/);
+  process.env.SHIELDGIVE_TEST_MODE = "true";
+
+  const blockedMint = await solanaMinter.mintDonationProof({
+    recipientWallet: "So11111111111111111111111111111111111111112",
+    amountZEC: 0.1,
+    donationId: "production-guard-test",
+    txId: "production-guard-tx",
+  });
+  assert.equal(blockedMint.success, false, "production must not report a mock mint as successful");
+  assert.match(blockedMint.error || "", /Production mock minting is blocked/);
 
   const wallet = "So11111111111111111111111111111111111111112";
   const donor = await storage.registerDonor(wallet, "private donor note");
