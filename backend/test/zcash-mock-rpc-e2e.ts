@@ -15,7 +15,7 @@ process.env.SOLANA_MODE = "mock";
 process.env.SOLANA_PRIVATE_KEY = "mock";
 
 const { storage } = await import("../src/services/storage.js");
-const donor = storage.registerDonor(donorWallet, "mock RPC donor");
+const donor = await storage.registerDonor(donorWallet, "mock RPC donor");
 const memo = donor.paymentMemo;
 const memoHex = Buffer.from(memo, "utf8").toString("hex");
 
@@ -65,14 +65,14 @@ try {
 
   await processIncomingTx(received[0]);
 
-  const donation = storage.getDonations()[0];
+  const donation = (await storage.getDonations())[0];
   assert.equal(donation.status, "minted");
   assert.equal(donation.solanaWallet, donorWallet);
   assert.ok(donation.nftMintAddress?.startsWith("mint_"));
   assert.equal(donation.crossL1Receipt?.status, "solana_proof_minted");
   assert.equal(donation.crossL1Receipt?.sourceTxId, txId);
   assert.equal(donation.crossL1Receipt?.destinationChain, "solana");
-  assert.equal(storage.getCampaign().totalRaisedZEC, 0.25);
+  assert.equal((await storage.getCampaign()).totalRaisedZEC, 0.25);
 
   console.log("SHIELDGIVE MOCK RPC E2E: PASS");
   console.log(JSON.stringify({
@@ -82,6 +82,7 @@ try {
     receiptStatus: donation.crossL1Receipt?.status,
     mintAddress: donation.nftMintAddress,
   }, null, 2));
+  await storage.close();
 } finally {
   await new Promise<void>((resolve, reject) => rpcServer.close((err) => err ? reject(err) : resolve()));
 }
