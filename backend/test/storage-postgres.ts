@@ -119,8 +119,8 @@ import { createCrossL1Receipt } from "../src/services/crossL1Receipt.js";
     assert.equal(await afterRestart.getReconciliationRequiredCount(), 0);
 
     const campaign = await afterRestart.getCampaign();
-    assert.equal(campaign.totalRaisedZEC, 0.375);
-    assert.equal(campaign.donationCount >= 1, true);
+    assert.equal(campaign.totalRaisedZEC, 0.5);
+    assert.equal(campaign.donationCount >= 2, true);
 
     console.log("SHIELDGIVE POSTGRES PERSISTENCE + ATOMIC CLAIM: PASS");
     console.log(JSON.stringify({
