@@ -196,6 +196,20 @@ npm run test:mock-e2e
 npm run test:zcash-mock-rpc
 ```
 
+
+If a live mint gets an ambiguous RPC outcome, ShieldGive deliberately does not retry it automatically. First independently locate and verify the Solana transaction in the correct network explorer, then reconcile using the persisted donation ID and mint candidate. The command re-queries the configured RPC and requires a confirmed successful transaction with the candidate mint owned by the registered recipient; it does not send a transaction.
+
+Example (after setting the environment variables to values you verified on-chain):
+```bash
+cd backend
+export SHIELDGIVE_RECONCILE_DONATION_ID="the-donation-id-from-private-logs"
+export SHIELDGIVE_RECONCILE_MINT_ADDRESS="the-persisted-mint-candidate"
+export SHIELDGIVE_RECONCILE_SIGNATURE="the-confirmed-solana-transaction-signature"
+export SHIELDGIVE_RECONCILE_CONFIRM="CONFIRM_RECONCILED_ONCHAIN_MINT"
+npm run reconcile:solana-mint
+```
+This requires the same durable `DATABASE_URL`, explicit `SOLANA_NETWORK` and `SOLANA_RPC_URL`, and a confirmed transaction whose post-token balance contains one zero-decimal token owned by the stored recipient. On mainnet it also requires `SOLANA_MAINNET_LIVE_MINT_ACK=I_UNDERSTAND_MAINNET_MINTING`. Never run against a production database until the transaction and network have been checked carefully.
+
 The PostgreSQL integration test requires a disposable test database:
 ```bash
 DATABASE_URL=postgres://USER:PASSWORD@HOST:5432/TEST_DATABASE npm run test:storage-postgres
