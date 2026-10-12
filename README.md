@@ -172,6 +172,17 @@ Open http://localhost:5173
 
 ---
 
+## Wallet Ownership and Private Status
+
+The Campaign page asks the connected Solana wallet to sign a short, expiring challenge before it can register that wallet or read private donation details. The challenge explicitly states the wallet and purpose; it is a message signature only, not an on-chain transaction, and has no network fee. Challenges are one-time-use. The backend verifies the Ed25519 signature and issues a random 15-minute bearer session whose hash is stored in the database.
+
+- `POST /api/wallet/challenge` creates the time-limited message.
+- `POST /api/wallet/session` verifies the signature and consumes the challenge.
+- `POST /api/register` requires the bearer session and only permits the verified wallet.
+- `GET /api/donations/mine` returns private status only for the wallet bound to that session.
+
+The public gallery and receipt endpoints expose completed proof objects only. They do not publish each donation's amount, exact time, shielded transaction ID, donor wallet, private receipt linkage, or mint signature. Individual donation details are available only to a wallet that proves ownership.
+
 ## Durable Storage, Idempotency, and Recovery
 
 Production requires a PostgreSQL `DATABASE_URL`. The backend creates its initial tables on startup and **refuses to start in production without the database URL** instead of silently losing registrations and donations in process memory. In-memory storage is only for local development and tests. Keep a long-running Node.js backend for the polling agent; do not rely on a short-lived serverless request to keep a cron worker alive.
