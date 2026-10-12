@@ -58,6 +58,7 @@ function validateProductionConfiguration(): void {
   }
   const network = process.env.SOLANA_NETWORK;
   const rpc = process.env.SOLANA_RPC_URL || "";
+  if (!rpc) problems.push("set SOLANA_RPC_URL explicitly for the selected network");
   if (network !== "devnet" && network !== "mainnet-beta") {
     problems.push("set SOLANA_NETWORK explicitly to devnet or mainnet-beta");
   } else if (network === "devnet" && /mainnet/i.test(rpc)) {
