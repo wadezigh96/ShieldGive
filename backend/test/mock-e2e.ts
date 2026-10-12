@@ -1,72 +1,74 @@
 import assert from "node:assert/strict";
 
 (async () => {
+  process.env.NODE_ENV = "test";
+  process.env.SOLANA_MODE = "mock";
+  process.env.SOLANA_PRIVATE_KEY = "mock";
+  process.env.ZCASH_MODE = "mock";
+  delete process.env.DATABASE_URL;
 
-process.env.SOLANA_MODE = "mock";
-process.env.SOLANA_PRIVATE_KEY = "mock";
+  const { storage } = await import("../src/services/storage.js");
+  const { processIncomingTx } = await import("../src/agent/pipeline.js");
 
-const { storage } = await import("../src/services/storage.js");
-const { processIncomingTx } = await import("../src/agent/pipeline.js");
+  const donor = await storage.registerDonor(
+    "So11111111111111111111111111111111111111112",
+    "mock e2e donor",
+  );
+  assert.match(donor.paymentMemo, /^ShieldGive donor=/);
 
-const donor = storage.registerDonor(
-  "So11111111111111111111111111111111111111112",
-  "mock e2e donor"
-);
+  const txId = "mock-zcash-tx-e2e-001";
+  const incomingTx = {
+    txId,
+    amountZEC: 0.25,
+    memo: donor.paymentMemo,
+    confirmations: 3,
+    receivedAt: new Date().toISOString(),
+  };
 
-assert.match(donor.paymentMemo, /^ShieldGive donor=/);
+  // A duplicate source event must create one donation and one proof only.
+  await Promise.all([
+    processIncomingTx(incomingTx),
+    processIncomingTx(incomingTx),
+  ]);
 
-const txId = "mock-zcash-tx-e2e-001";
-const incomingTx = {
-  txId,
-  amountZEC: 0.25,
-  memo: donor.paymentMemo,
-  confirmations: 3,
-  receivedAt: new Date().toISOString(),
-};
+  const donations = await storage.getDonations();
+  assert.equal(donations.length, 1, "expected exactly one donation record");
+  const donation = donations[0];
+  assert.equal(donation.txId, txId);
+  assert.equal(donation.status, "minted");
+  assert.equal(donation.solanaWallet, donor.solanaWallet);
+  assert.ok(donation.nftMintAddress?.startsWith("mint_"));
 
-// The same source transaction arriving concurrently must create one proof only.
-await Promise.all([
-  processIncomingTx(incomingTx),
-  processIncomingTx(incomingTx),
-]);
+  assert.ok(donation.crossL1Receipt);
+  assert.equal(donation.crossL1Receipt.sourceChain, "zcash");
+  assert.equal(donation.crossL1Receipt.destinationChain, "solana");
+  assert.equal(donation.crossL1Receipt.status, "solana_proof_minted");
+  assert.equal(donation.crossL1Receipt.amountZEC, 0.25);
+  assert.equal(donation.crossL1Receipt.solanaWallet, donor.solanaWallet);
+  assert.equal(donation.crossL1Receipt.sourceTxId, txId);
 
-const donations = storage.getDonations();
-assert.equal(donations.length, 1, "expected exactly one donation record");
+  const campaign = await storage.getCampaign();
+  assert.equal(campaign.totalRaisedZEC, 0.25);
+  assert.equal(campaign.donationCount, 1);
+  assert.equal(await storage.isTxProcessed(txId), true);
 
-const donation = donations[0];
-assert.equal(donation.txId, txId);
-assert.equal(donation.status, "minted");
-assert.equal(donation.solanaWallet, donor.solanaWallet);
-assert.ok(donation.nftMintAddress?.startsWith("mint_"));
+  const logs = (await storage.getAgentLogs(30)).map((entry) => entry.message);
+  assert.ok(logs.includes("Cross-L1 donation receipt created"));
+  assert.ok(logs.includes("NFT minted (mock mode)"));
+  assert.ok(logs.includes("Donation proof NFT minted & cross-L1 receipt completed"));
+  assert.equal(await storage.getReconciliationRequiredCount(), 0);
 
-assert.ok(donation.crossL1Receipt);
-assert.equal(donation.crossL1Receipt.sourceChain, "zcash");
-assert.equal(donation.crossL1Receipt.destinationChain, "solana");
-assert.equal(donation.crossL1Receipt.status, "solana_proof_minted");
-assert.equal(donation.crossL1Receipt.amountZEC, 0.25);
-assert.equal(donation.crossL1Receipt.solanaWallet, donor.solanaWallet);
-assert.equal(donation.crossL1Receipt.sourceTxId, txId);
+  console.log("SHIELDGIVE MOCK E2E: PASS");
+  console.log(JSON.stringify({
+    txId,
+    amountZEC: donation.amountZEC,
+    donationStatus: donation.status,
+    receiptStatus: donation.crossL1Receipt.status,
+    mintAddress: donation.nftMintAddress,
+    totalRaisedZEC: campaign.totalRaisedZEC,
+  }, null, 2));
 
-const campaign = storage.getCampaign();
-assert.equal(campaign.totalRaisedZEC, 0.25);
-assert.equal(campaign.donationCount, 1);
-assert.equal(storage.isTxProcessed(txId), true);
-
-const logs = storage.getAgentLogs(20).map((entry) => entry.message);
-assert.ok(logs.includes("Cross-L1 donation receipt created"));
-assert.ok(logs.includes("NFT minted (mock mode)"));
-assert.ok(logs.includes("Donation proof NFT minted & cross-L1 receipt completed"));
-
-console.log("SHIELDGIVE MOCK E2E: PASS");
-console.log(JSON.stringify({
-  txId,
-  amountZEC: donation.amountZEC,
-  donationStatus: donation.status,
-  receiptStatus: donation.crossL1Receipt.status,
-  mintAddress: donation.nftMintAddress,
-  totalRaisedZEC: campaign.totalRaisedZEC,
-}, null, 2));
-
+  await storage.close();
 })().catch((error) => {
   console.error(error);
   process.exitCode = 1;
