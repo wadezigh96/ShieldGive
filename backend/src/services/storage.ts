@@ -377,7 +377,7 @@ export class Storage {
       `Nonce: ${nonce}`,
       `Issued At: ${createdAt.toISOString()}`,
       `Expires At: ${expiresAt.toISOString()}`,
-    ].join("\\n");
+    ].join("\n");
     const challenge: WalletChallenge = {
       id,
       solanaWallet,
