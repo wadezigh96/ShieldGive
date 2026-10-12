@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 import type {
   Campaign,
   DonorRegistration,
@@ -153,7 +153,7 @@ export class Storage {
       idleTimeoutMillis: 30000,
     });
     const schemaLockKey = 73123178371;
-    let client: Awaited<ReturnType<Pool["connect"]>> | undefined;
+    let client: PoolClient | undefined;
     let lockAcquired = false;
     try {
       client = await pool.connect();
