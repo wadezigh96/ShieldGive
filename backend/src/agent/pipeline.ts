@@ -133,6 +133,14 @@ async function processIncomingTxInternal(tx: IncomingShieldedTx): Promise<void> 
       amountZEC: tx.amountZEC,
       donationId: donation.id,
       txId: tx.txId,
+      onPreparedMint: async (mintAddress) => {
+        await storage.updateDonation(donation.id, { nftMintAddress: mintAddress });
+        await storage.addAgentLog("warn", "Solana mint candidate persisted before broadcast", {
+          donationId: donation.id,
+          txId: tx.txId,
+          mintAddress,
+        });
+      },
     });
 
     if (mintResult.success && mintResult.mintAddress) {
