@@ -27,7 +27,7 @@ import { Connection } from "@solana/web3.js";
   process.env.SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com";
 
   const { storage } = await import("../src/services/storage.js");
-  const donor = storage.registerDonor(recipientWallet, "Devnet live E2E donor");
+  const donor = await storage.registerDonor(recipientWallet, "Devnet live E2E donor");
   const memo = donor.paymentMemo;
   const memoHex = Buffer.from(memo, "utf8").toString("hex");
 
@@ -85,13 +85,13 @@ import { Connection } from "@solana/web3.js";
 
     await processIncomingTx(received[0]);
 
-    const donation = storage.getDonations()[0];
+    const donation = (await storage.getDonations())[0];
 
     if (donation.status !== "minted") {
       console.error("=== E2E MINT FAILURE ===");
       console.error(JSON.stringify({
         donation,
-        logs: storage.getAgentLogs(20),
+        logs: await storage.getAgentLogs(20),
       }, null, 2));
     }
 
@@ -101,9 +101,9 @@ import { Connection } from "@solana/web3.js";
     assert.equal(donation.crossL1Receipt?.status, "solana_proof_minted");
     assert.equal(donation.crossL1Receipt?.sourceTxId, txId);
     assert.equal(donation.crossL1Receipt?.destinationChain, "solana");
-    assert.equal(storage.getCampaign().totalRaisedZEC, amountZEC);
+    assert.equal((await storage.getCampaign()).totalRaisedZEC, amountZEC);
 
-    const mintLog = storage.getAgentLogs().find(
+    const mintLog = (await storage.getAgentLogs()).find(
       (entry) =>
         entry.message === "NFT minted on Solana" &&
         entry.meta?.txId === txId
@@ -138,6 +138,7 @@ import { Connection } from "@solana/web3.js";
     await new Promise<void>((resolve, reject) =>
       rpcServer.close((err) => err ? reject(err) : resolve())
     );
+    await storage.close();
   }
 })().catch((error) => {
   console.error(error);
