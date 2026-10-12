@@ -14,6 +14,9 @@ import { createServer } from "node:http";
   const { default: apiRouter } = await import("../src/routes/api.js");
   const { solanaMinter } = await import("../src/services/solanaMinter.js");
 
+  // Initialize the test singleton before temporarily switching NODE_ENV to production.
+  await storage.initialize();
+
   // Explicitly prove production cannot silently fall back to RAM.
   const productionGuard = new Storage();
   process.env.NODE_ENV = "production";
