@@ -24,6 +24,22 @@ import { createCrossL1Receipt } from "../src/services/crossL1Receipt.js";
     const duplicateDonor = await second.registerDonor(wallet, "must not replace existing registration");
     assert.equal(duplicateDonor.id, donor.id, "wallet uniqueness must hold across instances");
 
+    const walletChallenge = await first.createWalletChallenge(wallet);
+    const challengeFromSecond = await second.getWalletChallenge(walletChallenge.id);
+    assert.equal(challengeFromSecond?.message, walletChallenge.message);
+    assert.equal(
+      await second.consumeWalletChallenge(walletChallenge.id, wallet, walletChallenge.message),
+      true,
+      "a valid wallet challenge can be consumed by another backend instance",
+    );
+    assert.equal(
+      await first.consumeWalletChallenge(walletChallenge.id, wallet, walletChallenge.message),
+      false,
+      "wallet challenge consumption must be one-time",
+    );
+    const walletSession = await first.createWalletSession(wallet);
+    assert.equal(await second.getWalletForSession(walletSession.token), wallet);
+
     const input = {
       txId,
       amountZEC: 0.375,
@@ -101,6 +117,8 @@ import { createCrossL1Receipt } from "../src/services/crossL1Receipt.js";
     const persistedDonation = await afterRestart.findDonationByTxId(txId);
     const persistedUnknown = await afterRestart.findDonationByTxId(unknownTxId);
     assert.equal(persistedDonor?.id, donor.id);
+    assert.equal(await afterRestart.getWalletForSession(walletSession.token), wallet);
+    assert.equal(await afterRestart.getWalletChallenge(walletChallenge.id), undefined);
     assert.equal(persistedDonation?.status, "minted");
     assert.equal(persistedDonation?.nftMintSignature, "postgres-test-signature");
     assert.equal(persistedUnknown?.status, "mint_unknown");
