@@ -43,6 +43,13 @@ export class SolanaMinter {
       recipientWallet, amountZEC, donationId,
     });
 
+    // Never mint a fake proof in production, even when a secret is missing.
+    if (process.env.NODE_ENV === "production" && this.mockMode) {
+      const error = "Production mock minting is blocked; configure a live Solana mint authority";
+      await storage.addAgentLog("error", error, { donationId, txId });
+      return { success: false, error, outcomeUnknown: false };
+    }
+
     if (this.mockMode) {
       const mockMint = `mint_${donationId.replace(/-/g, "").slice(0, 16)}`;
       const mockSig = `sig_${txId.slice(0, 16)}`;
@@ -63,7 +70,23 @@ export class SolanaMinter {
 
     let submissionAttempted = false;
     try {
-      const rpc = process.env.SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
+      const network = process.env.SOLANA_NETWORK || "devnet";
+      const rpc = process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com";
+      if (network !== "devnet" && network !== "mainnet-beta") {
+        throw new Error("SOLANA_NETWORK must explicitly be devnet or mainnet-beta");
+      }
+      if (network === "devnet" && /mainnet/i.test(rpc)) {
+        throw new Error("SOLANA_NETWORK=devnet conflicts with a mainnet RPC URL");
+      }
+      if (network === "mainnet-beta" && /devnet/i.test(rpc)) {
+        throw new Error("SOLANA_NETWORK=mainnet-beta conflicts with a Devnet RPC URL");
+      }
+      if (
+        network === "mainnet-beta" &&
+        process.env.SOLANA_MAINNET_LIVE_MINT_ACK !== "I_UNDERSTAND_MAINNET_MINTING"
+      ) {
+        throw new Error("Mainnet minting requires SOLANA_MAINNET_LIVE_MINT_ACK=I_UNDERSTAND_MAINNET_MINTING");
+      }
       const umi = createUmi(rpc).use(mplTokenMetadata());
       const keypair = umi.eddsa.createKeypairFromSecretKey(loadSecretKey());
       umi.use(keypairIdentity(keypair));
