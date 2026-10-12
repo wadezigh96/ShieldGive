@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - "feat/cross-l1-zcash-solana-proof"
+      - "fix/security-idempotency-audit"
   workflow_dispatch:
 
 jobs:
