@@ -152,10 +152,18 @@ export class Storage {
       connectionTimeoutMillis: 8000,
       idleTimeoutMillis: 30000,
     });
+    const schemaLockKey = 73123178371;
+    let client: Awaited<ReturnType<Pool["connect"]>> | undefined;
+    let lockAcquired = false;
     try {
-      await pool.query("SELECT 1");
-      await pool.query(SCHEMA_SQL);
-      await pool.query(
+      client = await pool.connect();
+      // Serialize schema bootstrap so two instances starting together cannot
+      // race while creating the same tables and indexes.
+      await client.query("SELECT pg_advisory_lock($1::bigint)", [schemaLockKey]);
+      lockAcquired = true;
+      await client.query("SELECT 1");
+      await client.query(SCHEMA_SQL);
+      await client.query(
         `INSERT INTO shieldgive_campaigns (id, title, description, shielded_address, created_at)
          VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (id) DO UPDATE SET shielded_address = EXCLUDED.shielded_address`,
@@ -167,9 +175,19 @@ export class Storage {
           this.campaign.createdAt,
         ],
       );
+      await client.query("SELECT pg_advisory_unlock($1::bigint)", [schemaLockKey]);
+      lockAcquired = false;
+      client.release();
+      client = undefined;
       this.pool = pool;
       this.mode = "postgres";
     } catch (error) {
+      if (client) {
+        if (lockAcquired) {
+          await client.query("SELECT pg_advisory_unlock($1::bigint)", [schemaLockKey]).catch(() => undefined);
+        }
+        client.release();
+      }
       await pool.end().catch(() => undefined);
       throw new Error(
         `PostgreSQL initialization failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -192,6 +210,8 @@ export class Storage {
       this.pool = undefined;
       await pool.end();
     }
+    this.mode = undefined;
+    this.initPromise = undefined;
   }
 
   async getCampaign(): Promise<Campaign> {
