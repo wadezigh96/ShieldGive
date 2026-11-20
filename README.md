@@ -195,6 +195,8 @@ Multi-chain NFT support • Native Zcash wallet integration • Conditional agen
 
 ---
 
+Donation: t1Tt3RewpRiUjBx1hbuDnECfYHrD4wswD1b
+
 ## License
 
 MIT
