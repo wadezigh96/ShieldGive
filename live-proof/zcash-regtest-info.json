@@ -1,0 +1,9 @@
+{
+  "network": "zcash-regtest",
+  "datadir": "live-proof/zcash-regtest",
+  "campaign_shielded_address": "zregtestsapling1wkxgkm88s8wnn6f32kdlnexlh7d9j4cw3a7t06q9zvzaauerrcvthmexhvqjeyd3rwy4x65fnd0",
+  "campaign_viewing_key": "zxviewregtestsapling1qsmkj2zkqqqqpqyvk3hncevv3reh3yhfl70025m3d6wzu27t24d8j5qkrmquw5zvthjf70kdjkhuclf4pt9t3r0ej64p5qdrtcwx0jm9qdjet53y2s5dskgz7ql5857wz82vdjgj4w3yvs353cxk0n6q9j5yyvc3nqza2m3jq0apy8nstln7r6fn43eeuq0772axzrhnjkdxj8aruesap6x7m0hgyzv0q052gh50mk4lrkvp5r9js5wnl52d3tjuhrs0t2t5kfzxflc8gwzjn",
+  "donor_shielded_address": "zregtestsapling1s0xras9z9um2r5cr2d2057csf82z7qgwqq892wd7c82e5nc66j6wd4rv3kc6m2mwwvqwg9kwu9v",
+  "transparent_funding_address": "tmYBBcJqiP5kifPVTkizePfXpqYVhBbRRJd",
+  "note": "Regtest-only addresses (chain rebuilt 2026-11-20 after enabling Sapling via -nuparams). Viewing key only - spending keys never leave regtest/wallet.dat (do not publish that directory)."
+}

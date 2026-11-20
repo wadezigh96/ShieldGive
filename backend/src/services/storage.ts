@@ -115,6 +115,11 @@ class Storage {
     );
   }
 
+  /** Find the (single) donation record for a tx, if one already exists. */
+  findDonationByTxId(txId: string): DetectedDonation | undefined {
+    return Array.from(this.donations.values()).find((d) => d.txId === txId);
+  }
+
   recordRaised(amountZEC: number): void {
     this.campaign.totalRaisedZEC =
       Math.round((this.campaign.totalRaisedZEC + amountZEC) * 1e8) / 1e8;

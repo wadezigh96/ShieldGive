@@ -41,13 +41,24 @@ export async function processIncomingTx(tx: IncomingShieldedTx): Promise<void> {
     ? storage.getDonors().find((d) => d.id === donorId)
     : undefined;
 
-  const donation = storage.addDonation({
-    txId: tx.txId,
-    amountZEC: tx.amountZEC,
-    detectedAt: tx.receivedAt || new Date().toISOString(),
-    status: "pending",
-    solanaWallet: donor?.solanaWallet,
-  });
+  // Dedupe: a failed tx is retried on every tick, but it must update the
+  // existing record instead of appending a new one (previously the list grew
+  // by one failed record per tick for the same txid).
+  const existing = storage.findDonationByTxId(tx.txId);
+  const donation = existing
+    ? storage.updateDonation(existing.id, {
+        detectedAt: tx.receivedAt || new Date().toISOString(),
+        status: "pending",
+        solanaWallet: donor?.solanaWallet,
+        error: undefined,
+      }) ?? existing
+    : storage.addDonation({
+        txId: tx.txId,
+        amountZEC: tx.amountZEC,
+        detectedAt: tx.receivedAt || new Date().toISOString(),
+        status: "pending",
+        solanaWallet: donor?.solanaWallet,
+      });
 
   if (!donor) {
     storage.updateDonation(donation.id, {

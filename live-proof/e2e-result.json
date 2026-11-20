@@ -1,0 +1,158 @@
+{
+  "backend": {
+    "agent_status": {
+      "mockSolana": false,
+      "mockZcash": false,
+      "pollIntervalSeconds": 10,
+      "registeredDonors": 1,
+      "totalDonations": 17
+    },
+    "donation_detected": {
+      "amountZEC": 0.25,
+      "correlation": "validated, donorId 02196eac-157f-484c-9787-ac11def83694",
+      "detectedAt": "2026-11-20T13:32:05.000Z",
+      "mint_address": "66KtaV5A8WxhDekkpcaK4MCNBZS52uM5KrnWWApTnDTJ",
+      "mint_signature_base58": "2tAo3snpvwNv6JKpsYgz5Mrg8fZqM1jpuXEbuvRvazPZmGkeGaxCvG6K4w4NWTYyNpiR7cnpiDx9CGa5GwpfKTyf",
+      "mint_signature_base64url": "XiShB0ObGD4izpxUD3k6nEGlvzQ2iF14cJmPK9vRThn5NiOGWJUxVVpF-IFKiW7o79OkQytsU8rcEfKMnHGDDg",
+      "mint_slot": 524368454,
+      "mint_status": "minted",
+      "txId": "91ce669756a6737e2b5602802fa55f96ad6232f096b87b51dd8909bbb4a5baf8"
+    },
+    "donor": {
+      "id": "02196eac-157f-484c-9787-ac11def83694",
+      "registeredAt": "2026-11-20T13:31:00Z",
+      "solanaWallet": "3qP5Up4JEqNs1C7JSJaq7iZfXCQUgKw6ErekVhrj5kUE"
+    },
+    "health": {
+      "service": "shieldgive-backend",
+      "status": "ok"
+    },
+    "negative_control": {
+      "amountZEC": 0.1,
+      "error": "Donation memo missing ShieldGive donor code",
+      "mint_attempted": false,
+      "status": "failed",
+      "txId": "5d9073fb437f4bbffa2c3c905902cc061724c8126a88cefa04730d5a8cc6f5e7"
+    },
+    "observations": [
+      "Each failed-mint tick appends a NEW failed donation record for the same txid \u2014 retry creates a record instead of updating the existing one.",
+      "2026-11-20 ~13:00 UTC the VM restarted (or processes were reaped): zcashd + backend were dead, zcashd binary in /tmp was gone. Datadir, wallet and backend/.env survived. zcashd 6.12.2 was re-downloaded from the official ZODL tarball (sha256 verified) into live-proof/zcash-bin/ (persistent home dir) and both processes restarted; a NEW donation had to be sent because the backend's in-memory donor registry was lost (old donation memo referenced the old donor id)."
+    ]
+  },
+  "date": "2026-11-20T13:55:00Z",
+  "files": [
+    "docs/LIVE_SETUP.md",
+    "live-proof/LIVE_PROOF.md",
+    "live-proof/backend.log",
+    "live-proof/e2e-result.json",
+    "live-proof/solana-keypairs-public.json",
+    "live-proof/solana-setup.mjs",
+    "live-proof/verify-mint.mjs",
+    "live-proof/verify-mint2.mjs",
+    "live-proof/zcash-bin/ (zcashd 6.12.2, sha256+GPG verified)",
+    "live-proof/zcash-regtest-info.json",
+    "metadata/donation-proof.json"
+  ],
+  "first_run": {
+    "donation_detected": {
+      "amountZEC": 0.25,
+      "correlation": "validated, donorId 0bb19296-5146-435f-a328-71506991ca30",
+      "detectedAt": "2026-11-20T12:52:14.000Z",
+      "mint_error": "Transaction simulation failed: This account may not be used to pay transaction fees.",
+      "mint_status": "failed (retrying, minter 0 SOL)",
+      "txId": "7ca118c55f836ba8291c00af01e7f92c2dbbe28fa42d2c6b4bcc4eb6097eed50"
+    },
+    "donor": {
+      "id": "0bb19296-5146-435f-a328-71506991ca30",
+      "solanaWallet": "3qP5Up4JEqNs1C7JSJaq7iZfXCQUgKw6ErekVhrj5kUE"
+    }
+  },
+  "limitations": [
+    "Zcash side is regtest (local, no sync) \u2014 protocol-identical Sapling flow, not testnet/mainnet.",
+    "Solana side is devnet \u2014 real network, test SOL only.",
+    "NFT metadata URI returns 404 until metadata/donation-proof.json is pushed to GitHub.",
+    "Backend storage is in-memory \u2014 restart loses donors/donations/logs.",
+    "No private keys or spending keys are stored in this file."
+  ],
+  "overall": "PROVEN LIVE END-TO-END (twice) \u2014 shielded ZEC donation detected + correlated + NFT minted on Solana devnet, verified independently via devnet RPC. Dedupe fix verified: record count stable across ticks.",
+  "solana": {
+    "donor_token_balance": "1",
+    "donor_wallet_address": "3qP5Up4JEqNs1C7JSJaq7iZfXCQUgKw6ErekVhrj5kUE",
+    "faucet_resolution": "User solved the Cloudflare Turnstile captcha in the live browser themselves; minter balance went from 0 to 10 SOL (verified via getBalance, slot 524367575). RPC requestAirdrop was closed (410 Gone) and the browser could not solve Turnstile on its own (4 failed attempts).",
+    "metadata_account": "4awX8JnUPESYywjL6z77UvNGdwHW9upcQ2Rso2Jj68ng (exists, 607 bytes, owner metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s)",
+    "metadata_uri": "https://raw.githubusercontent.com/wadezigh96/ShieldGive/main/metadata/donation-proof.json",
+    "metadata_uri_resolves": false,
+    "mint_address": "66KtaV5A8WxhDekkpcaK4MCNBZS52uM5KrnWWApTnDTJ",
+    "mint_owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "mint_signature": "2tAo3snpvwNv6JKpsYgz5Mrg8fZqM1jpuXEbuvRvazPZmGkeGaxCvG6K4w4NWTYyNpiR7cnpiDx9CGa5GwpfKTyf",
+    "mint_slot": 524368454,
+    "mint_supply": "1",
+    "minter_address": "F9T1dYAhzf9GhfP1eq7w5R2rCtvmCJwCKdTG4pLjC2CC",
+    "minter_balance_lamports": 10000000000,
+    "network": "devnet",
+    "rpc_url": "https://api.devnet.solana.com"
+  },
+  "verification": {
+    "donor_holds_1_token": true,
+    "metadata_account_exists": true,
+    "mint_account_owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "mint_tx_error": null,
+    "mint_tx_fee_lamports": 10000,
+    "supply": "1"
+  },
+  "zcash": {
+    "blocks_mined": 112,
+    "campaign_shielded_address": "zregtestsapling1wkxgkm88s8wnn6f32kdlnexlh7d9j4cw3a7t06q9zvzaauerrcvthmexhvqjeyd3rwy4x65fnd0",
+    "campaign_viewing_key": "zxviewregtestsapling1qsmkj2zkqqqqpqyvk3hncevv3reh3yhfl70025m3d6wzu27t24d8j5qkrmquw5zvthjf70kdjkhuclf4pt9t3r0ej64p5qdrtcwx0jm9qdjet53y2s5dskgz7ql5857wz82vdjgj4w3yvs353cxk0n6q9j5yyvc3nqza2m3jq0apy8nstln7r6fn43eeuq0772axzrhnjkdxj8aruesap6x7m0hgyzv0q052gh50mk4lrkvp5r9js5wnl52d3tjuhrs0t2t5kfzxflc8gwzjn",
+    "datadir": "live-proof/zcash-regtest",
+    "donation_tx": {
+      "amount_zec": 0.25,
+      "block": 111,
+      "confirmations": 1,
+      "fee_zec": 0.0002,
+      "from": "donor shielded address",
+      "memo_ascii": "donor=02196eac-157f-484c-9787-ac11def83694",
+      "memo_hex": "646f6e6f723d30323139366561632d313537662d343834632d393738372d616331316465663833363934",
+      "to": "campaign shielded address",
+      "txid": "91ce669756a6737e2b5602802fa55f96ad6232f096b87b51dd8909bbb4a5baf8"
+    },
+    "donor_shielded_address": "zregtestsapling1s0xras9z9um2r5cr2d2057csf82z7qgwqq892wd7c82e5nc66j6wd4rv3kc6m2mwwvqwg9kwu9v",
+    "funding_tx": {
+      "amount_zec": 6.2498,
+      "confirmations": 1,
+      "fee_zec": 0.0002,
+      "from": "tmGE9nDR5JXcM5kXp4LRrBoh3qTaF6ageRD",
+      "privacy_policy": "AllowRevealedSenders",
+      "to": "donor shielded address",
+      "txid": "31170b1c312b58fa134451703a10497426cc3c10fdf4a2722f92496aa8862993"
+    },
+    "miner_transparent_address": "tmGE9nDR5JXcM5kXp4LRrBoh3qTaF6ageRD",
+    "negative_control_tx": {
+      "amount_zec": 0.1,
+      "confirmations": 1,
+      "memo": null,
+      "txid": "5d9073fb437f4bbffa2c3c905902cc061724c8126a88cefa04730d5a8cc6f5e7"
+    },
+    "network": "regtest",
+    "node": "zcashd 6.12.2",
+    "rpc_port": 18232,
+    "sapling_activation": "via nuparams branch IDs (5ba81b19:1 overwinter, 76b809bb:1 sapling, 2bb40e60:1 blossom, f5b9230b:1 heartwood, e9ff75a6:1 canopy)"
+  },
+  "dedupe_fix": {
+    "change": "pipeline.ts reuses existing donation record by txid (storage.findDonationByTxId) instead of addDonation on every retry tick",
+    "verified": "total records stayed at 4 across multiple 10s ticks (1 per txid); previously +1 per tick",
+    "files": [
+      "backend/src/agent/pipeline.ts",
+      "backend/src/services/storage.ts"
+    ]
+  },
+  "second_mint": {
+    "donation_tx": "f5fe41dcce5e6f87b12d869aece6611ac49d7d154f5688c80a6511bb6a4ec37e",
+    "donor_id": "b4a61929-c2b6-4f49-87ed-a39edf2cc00e",
+    "mint_address": "GNnfvesCJUn24Wzwek6ndTpUfuN1DNZYG8hn35reBiWA",
+    "mint_signature": "5UAAdSrtsTQhk2RVqaSnj83pX48hteWMkRuzR8LG2p3KEZSEoVgwRsRbcsUGm3aef2NuaDF1QXec8NxBR2L3uovn",
+    "mint_slot": 524373550,
+    "metadata_pda": "Gf1ypFkq5P7ENJYBJG7MAsoK67XWb3UioN1iLi7R9J7Z",
+    "minted_at": "2026-11-20T13:52:52Z"
+  }
+}

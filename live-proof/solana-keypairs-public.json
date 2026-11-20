@@ -1,0 +1,7 @@
+{
+  "network": "solana-devnet",
+  "rpc": "https://api.devnet.solana.com",
+  "minter": "F9T1dYAhzf9GhfP1eq7w5R2rCtvmCJwCKdTG4pLjC2CC",
+  "donor": "3qP5Up4JEqNs1C7JSJaq7iZfXCQUgKw6ErekVhrj5kUE",
+  "note": "Throwaway devnet-only keypairs for the ShieldGive live proof. No mainnet value. Private keys are NOT stored here."
+}
