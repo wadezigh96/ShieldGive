@@ -4,7 +4,13 @@
 
 > MVP built for the **Colosseum Crypto World's Fair — Zcash Track**
 
-ShieldGive demonstrates a privacy-focused donation workflow using **shielded Zcash transactions** and a Solana proof layer. The public demo clearly separates deterministic mock processing from planned live Zcash detection and Solana minting.
+ShieldGive demonstrates a privacy-focused donation workflow using **shielded Zcash transactions** and a Solana proof layer. The public demo clearly separates deterministic mock processing from live Zcash detection and Solana minting.
+
+## Status
+
+- ✅ **Live end-to-end proof executed (2026-11-20):** a real shielded Zcash donation (regtest) was detected by the agent, correlated by its memo, and minted as an NFT on Solana devnet — verified independently via devnet RPC. Full evidence: [live-proof/LIVE_PROOF.md](live-proof/LIVE_PROOF.md)
+- 🌐 **Public demo:** https://shield-give.vercel.app — runs in clearly labeled demo mode (mock Zcash/Solana). Live mode is configured via `backend/.env`; see [docs/LIVE_SETUP.md](docs/LIVE_SETUP.md).
+- 🚧 Originally built for the Colosseum Crypto World's Fair (Zcash Track); now being developed further in the **Colosseum Eternal** sprint.
 
 ---
 
@@ -75,8 +81,8 @@ This keeps complexity low while still demonstrating autonomous execution for the
 | Frontend           | React + Vite + Tailwind CSS         |
 | Backend + Agent    | Node.js + TypeScript + Express      |
 | Scheduling         | `node-cron`                         |
-| Zcash              | Viewing key + light client (mocked for public demo) |
-| Solana             | Metaplex / UMI intended for live minting; demo uses local proof records |
+| Zcash              | Viewing key + zcashd RPC polling (live proven on regtest; mocked in public demo) |
+| Solana             | Metaplex / UMI live minting (proven on devnet); demo uses local proof records |
 | Database (demo)    | In-memory / JSON file               |
 
 ---
@@ -101,9 +107,10 @@ shieldgive/
 │   │   └── ...
 │   ├── package.json
 │   └── ...
-├── docs/
-│   └── SPEC.md             # Full product specification
-├── .env.example
+├── docs/                   # SPEC.md, LIVE_SETUP.md, SUBMISSION.md, DEMO_VIDEO_GUIDE.md
+├── live-proof/             # Executed live E2E proof: regtest Zcash → Solana devnet (LIVE_PROOF.md)
+├── metadata/               # NFT metadata JSON
+├── backend/.env.example
 └── README.md
 ```
 
@@ -120,8 +127,8 @@ shieldgive/
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/wadezigh96/shieldgive.git
-cd shieldgive
+git clone https://github.com/wadezigh96/ShieldGive.git
+cd ShieldGive
 
 # Backend
 cd backend
@@ -140,10 +147,16 @@ Edit `backend/.env`:
 ```env
 PORT=3001
 POLL_INTERVAL_SECONDS=30
-ZCASH_VIEWING_KEY=your_viewing_key_here   # or leave empty for mock mode
+# Demo mode: leave ZCASH_RPC_URL and SOLANA_PRIVATE_KEY empty,
+# or set ZCASH_MODE=mock / SOLANA_MODE=mock explicitly.
+# Live mode (full guide: docs/LIVE_SETUP.md):
+ZCASH_RPC_URL=http://127.0.0.1:8232
+ZCASH_RPC_USER=
+ZCASH_RPC_PASSWORD=
+<MASKED_SECRET_001>
 SOLANA_RPC_URL=https://api.devnet.solana.com
-SOLANA_PRIVATE_KEY=...                    # for mint authority (demo)
-CAMPAIGN_SHIELDED_ADDRESS=zs1...
+SOLANA_PRIVATE_KEY=...                    # mint authority secret key — NEVER commit this value
+SOLANA_NFT_METADATA_URI=https://...       # public URI of the NFT metadata JSON
 ```
 
 ### 3. Run
@@ -185,7 +198,7 @@ Open http://localhost:5173
 ## Roadmap
 
 **Now (Hackathon)**  
-Single demo campaign • Polling agent • Viewing-key verification (testnet/mock) • Metaplex mint
+Single demo campaign • Polling agent • Live E2E proof: Zcash regtest → Solana devnet ✅ • Metaplex mint (live)
 
 **Post-Hackathon**  
 Multi-campaign platform • Creator dashboard • Real-time detection (webhooks / light client events) • Production viewing-key management
